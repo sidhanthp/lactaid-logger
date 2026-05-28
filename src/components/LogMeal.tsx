@@ -36,7 +36,6 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
     meals.forEach(m => {
       if (!counts[m.food]) counts[m.food] = { count: 0, lastPills: m.lactaidPills, food: m.food };
       counts[m.food].count++;
-      counts[m.food].lastPills = m.lactaidPills;
     });
     return Object.values(counts)
       .sort((a, b) => b.count - a.count)
