@@ -287,7 +287,7 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
                 placeholder="Add context: &quot;sharing with 3 people&quot;, &quot;just my slice&quot;..."
                 value={photoContext}
                 onChange={e => setPhotoContext(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && photoContext.trim() && handleReanalyzeWithContext()}
+                onKeyDown={e => e.key === 'Enter' && photoContext.trim() && !photoLoading && handleReanalyzeWithContext()}
                 className="flex-1 px-3 py-2 rounded-xl bg-white/80 border border-sky-200 focus:outline-none focus:ring-2 focus:ring-sky-400 text-xs text-gray-800 placeholder:text-gray-400"
               />
               {photoContext.trim() && (
