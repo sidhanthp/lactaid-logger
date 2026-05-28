@@ -60,13 +60,17 @@ export function getStats(meals: MealEntry[]) {
   const trackedMeals = mealsWithSymptoms.length;
 
   if (trackedMeals === 0) {
+    const avgPills = totalMeals > 0 ? Number((meals.reduce((sum, m) => sum + m.lactaidPills, 0) / totalMeals).toFixed(1)) : 0;
+    const foodCounts: Record<string, number> = {};
+    meals.forEach(m => { foodCounts[m.food] = (foodCounts[m.food] || 0) + 1; });
+    const mostCommonFood = Object.entries(foodCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'N/A';
     return {
       totalMeals,
       trackedMeals,
       successRate: 0,
-      avgPills: 0,
+      avgPills,
       avgSymptomScore: 0,
-      mostCommonFood: 'N/A',
+      mostCommonFood,
       weeklyTrend: [] as { week: string; avgScore: number }[],
     };
   }

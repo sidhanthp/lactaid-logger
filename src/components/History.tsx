@@ -113,7 +113,7 @@ export default function History({ meals, onUpdate }: HistoryProps) {
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-bold text-gray-800">How did you feel?</h3>
               <button
-                onClick={() => setSymptomModalId(null)}
+                onClick={() => { setSymptomModalId(null); setSymptomNotes(''); }}
                 className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center"
               >
                 <X className="w-4 h-4 text-gray-500" />
