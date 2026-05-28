@@ -1,19 +1,20 @@
 'use client';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { Search, ChevronRight, ChevronLeft, Minus, Plus, Check, Pill } from 'lucide-react';
-import { DairyLevel } from '@/lib/types';
+import { Search, ChevronRight, ChevronLeft, Minus, Plus, Check, Pill, Zap } from 'lucide-react';
+import { DairyLevel, MealEntry } from '@/lib/types';
 import { DAIRY_FOODS, DAIRY_LEVEL_INFO, searchFoods, estimateDairyLevel } from '@/lib/dairy';
 import { createMeal } from '@/lib/storage';
 
 interface LogMealProps {
+  meals: MealEntry[];
   onMealSaved: () => void;
   onMealLogged: () => void;
 }
 
 type Step = 'food' | 'dairy' | 'lactaid' | 'done';
 
-export default function LogMeal({ onMealSaved, onMealLogged }: LogMealProps) {
+export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealProps) {
   const [step, setStep] = useState<Step>('food');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFood, setSelectedFood] = useState('');
@@ -29,6 +30,18 @@ export default function LogMeal({ onMealSaved, onMealLogged }: LogMealProps) {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, []);
+
+  const frequentFoods = useMemo(() => {
+    const counts: Record<string, { count: number; lastPills: number; food: string }> = {};
+    meals.forEach(m => {
+      if (!counts[m.food]) counts[m.food] = { count: 0, lastPills: m.lactaidPills, food: m.food };
+      counts[m.food].count++;
+      counts[m.food].lastPills = m.lactaidPills;
+    });
+    return Object.values(counts)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 4);
+  }, [meals]);
 
   const filteredFoods = useMemo(() => searchFoods(searchQuery), [searchQuery]);
 
@@ -47,6 +60,20 @@ export default function LogMeal({ onMealSaved, onMealLogged }: LogMealProps) {
     setLactoseGrams(lactose);
     setDairyLevel(level);
     setStep('dairy');
+  }
+
+  function handleQuickLog(food: string, lastPills: number) {
+    const known = DAIRY_FOODS.find(f => f.name === food);
+    if (known) {
+      selectFood(known.name, known.lactoseGrams, known.emoji, known.dairyLevel);
+    } else {
+      setSelectedFood(food);
+      setSelectedEmoji('🍽');
+      setLactoseGrams(3);
+      setDairyLevel('medium');
+      setStep('dairy');
+    }
+    setLactaidPills(lastPills);
   }
 
   function handleCustomFood() {
@@ -98,6 +125,33 @@ export default function LogMeal({ onMealSaved, onMealLogged }: LogMealProps) {
     return (
       <div className="flex flex-col gap-4 animate-fade-in">
         <h2 className="text-xl font-bold text-gray-800">What did you eat?</h2>
+
+        {frequentFoods.length > 0 && !searchQuery && (
+          <div>
+            <div className="flex items-center gap-1.5 mb-2 px-1">
+              <Zap className="w-3.5 h-3.5 text-amber-500" />
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Quick Log</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {frequentFoods.map(f => {
+                const known = DAIRY_FOODS.find(d => d.name === f.food);
+                return (
+                  <button
+                    key={f.food}
+                    onClick={() => handleQuickLog(f.food, f.lastPills)}
+                    className="flex items-center gap-2 p-3 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/60 hover:border-amber-300 transition-all active:scale-[0.97] text-left"
+                  >
+                    <span className="text-lg">{known?.emoji ?? '🍽'}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{f.food}</p>
+                      <p className="text-[10px] text-gray-500">{f.lastPills} pill{f.lastPills !== 1 ? 's' : ''} last time</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />

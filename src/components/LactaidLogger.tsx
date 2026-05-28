@@ -68,7 +68,7 @@ export default function LactaidLogger() {
           </div>
         ) : (
           <>
-            {activeTab === 'log' && <LogMeal onMealSaved={refreshMeals} onMealLogged={handleMealLogged} />}
+            {activeTab === 'log' && <LogMeal meals={meals} onMealSaved={refreshMeals} onMealLogged={handleMealLogged} />}
             {activeTab === 'history' && <History meals={meals} onUpdate={refreshMeals} />}
             {activeTab === 'insights' && <Insights meals={meals} />}
           </>

@@ -1,9 +1,9 @@
 'use client';
 
-import { TrendingUp, Target, Award, BarChart3 } from 'lucide-react';
+import { TrendingUp, Target, Award, BarChart3, Download, Sparkles } from 'lucide-react';
 import { MealEntry } from '@/lib/types';
 import { DAIRY_LEVEL_INFO } from '@/lib/dairy';
-import { getRecommendations, getStats } from '@/lib/recommendations';
+import { getRecommendations, getStats, getPatternInsights, exportMealsToCsv } from '@/lib/recommendations';
 
 interface InsightsProps {
   meals: MealEntry[];
@@ -12,6 +12,18 @@ interface InsightsProps {
 export default function Insights({ meals }: InsightsProps) {
   const recommendations = getRecommendations(meals);
   const stats = getStats(meals);
+  const patterns = getPatternInsights(meals);
+
+  function handleExport() {
+    const csv = exportMealsToCsv(meals);
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `lactaid-log-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   if (meals.length === 0) {
     return (
@@ -27,7 +39,16 @@ export default function Insights({ meals }: InsightsProps) {
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
-      <h2 className="text-xl font-bold text-gray-800">Your Insights</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-gray-800">Your Insights</h2>
+        <button
+          onClick={handleExport}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/70 border border-gray-200 text-xs font-medium text-gray-600 hover:bg-white hover:border-gray-300 transition-all active:scale-95"
+        >
+          <Download className="w-3.5 h-3.5" />
+          Export CSV
+        </button>
+      </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 gap-3">
@@ -56,6 +77,30 @@ export default function Insights({ meals }: InsightsProps) {
           sub="most logged"
         />
       </div>
+
+      {/* Pattern Insights */}
+      {patterns.length > 0 && (
+        <div className="bg-white/60 rounded-3xl p-5 border border-gray-100">
+          <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-amber-500" /> Smart Patterns
+          </h3>
+          <div className="space-y-2.5">
+            {patterns.map((p, i) => (
+              <div
+                key={i}
+                className={`flex items-start gap-3 p-3 rounded-2xl ${
+                  p.type === 'success' ? 'bg-emerald-50/80 border border-emerald-100' :
+                  p.type === 'warning' ? 'bg-amber-50/80 border border-amber-100' :
+                  'bg-blue-50/80 border border-blue-100'
+                }`}
+              >
+                <span className="text-lg shrink-0">{p.emoji}</span>
+                <p className="text-sm text-gray-700">{p.text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Dosage Guide */}
       <div className="bg-white/60 rounded-3xl p-5 border border-gray-100">

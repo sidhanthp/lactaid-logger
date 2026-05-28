@@ -103,3 +103,102 @@ export function getStats(meals: MealEntry[]) {
 
   return { totalMeals, trackedMeals, successRate, avgPills, avgSymptomScore, mostCommonFood, weeklyTrend };
 }
+
+export interface PatternInsight {
+  emoji: string;
+  text: string;
+  type: 'success' | 'warning' | 'info';
+}
+
+export function getPatternInsights(meals: MealEntry[]): PatternInsight[] {
+  const insights: PatternInsight[] = [];
+  const tracked = meals.filter(m => m.symptoms !== null);
+  if (tracked.length < 3) return insights;
+
+  // Find foods that always work with specific pill counts
+  const foodResults: Record<string, { successes: number; failures: number; bestPills: number }> = {};
+  tracked.forEach(m => {
+    if (!foodResults[m.food]) foodResults[m.food] = { successes: 0, failures: 0, bestPills: Infinity };
+    const ok = m.symptoms === 'none' || m.symptoms === 'mild';
+    if (ok) {
+      foodResults[m.food].successes++;
+      foodResults[m.food].bestPills = Math.min(foodResults[m.food].bestPills, m.lactaidPills);
+    } else {
+      foodResults[m.food].failures++;
+    }
+  });
+
+  Object.entries(foodResults).forEach(([food, r]) => {
+    if (r.successes >= 2 && r.failures === 0) {
+      insights.push({
+        emoji: '🎯',
+        text: `${food} + ${r.bestPills} pill${r.bestPills !== 1 ? 's' : ''} = always works for you`,
+        type: 'success',
+      });
+    }
+    if (r.failures >= 2 && r.successes === 0) {
+      insights.push({
+        emoji: '⚠️',
+        text: `${food} causes symptoms every time — try more pills`,
+        type: 'warning',
+      });
+    }
+  });
+
+  // Time-of-day pattern
+  const evening = tracked.filter(m => {
+    const h = new Date(m.timestamp).getHours();
+    return h >= 18;
+  });
+  const daytime = tracked.filter(m => {
+    const h = new Date(m.timestamp).getHours();
+    return h >= 6 && h < 18;
+  });
+  if (evening.length >= 2 && daytime.length >= 2) {
+    const eveningBad = evening.filter(m => m.symptoms === 'moderate' || m.symptoms === 'severe').length / evening.length;
+    const daytimeBad = daytime.filter(m => m.symptoms === 'moderate' || m.symptoms === 'severe').length / daytime.length;
+    if (eveningBad > daytimeBad + 0.3) {
+      insights.push({ emoji: '🌙', text: 'You tend to have worse symptoms with evening meals', type: 'warning' });
+    }
+  }
+
+  // Improving over time
+  if (tracked.length >= 4) {
+    const half = Math.floor(tracked.length / 2);
+    const sorted = [...tracked].sort((a, b) => a.timestamp - b.timestamp);
+    const olderHalf = sorted.slice(0, half);
+    const newerHalf = sorted.slice(half);
+    const olderAvg = olderHalf.reduce((s, m) => s + SYMPTOM_SCORE[m.symptoms!], 0) / olderHalf.length;
+    const newerAvg = newerHalf.reduce((s, m) => s + SYMPTOM_SCORE[m.symptoms!], 0) / newerHalf.length;
+    if (newerAvg < olderAvg - 0.5) {
+      insights.push({ emoji: '📈', text: 'Your symptoms are improving over time — great job!', type: 'success' });
+    }
+  }
+
+  // Zero-pill successes
+  const zeroPillSuccesses = tracked.filter(m => m.lactaidPills === 0 && (m.symptoms === 'none' || m.symptoms === 'mild'));
+  if (zeroPillSuccesses.length >= 2) {
+    const foods = [...new Set(zeroPillSuccesses.map(m => m.food))].slice(0, 3).join(', ');
+    insights.push({ emoji: '🆓', text: `You tolerate ${foods} without pills`, type: 'info' });
+  }
+
+  return insights.slice(0, 5);
+}
+
+export function exportMealsToCsv(meals: MealEntry[]): string {
+  const headers = ['Date', 'Time', 'Food', 'Dairy Level', 'Lactose (g)', 'Pills', 'Symptoms', 'Notes'];
+  const rows = meals.map(m => {
+    const d = new Date(m.timestamp);
+    return [
+      d.toLocaleDateString(),
+      d.toLocaleTimeString(),
+      m.food,
+      m.dairyLevel,
+      String(m.estimatedLactoseGrams),
+      String(m.lactaidPills),
+      m.symptoms ?? 'pending',
+      m.symptomNotes || '',
+    ].map(v => `"${v.replace(/"/g, '""')}"`).join(',');
+  });
+  return [headers.join(','), ...rows].join('\n');
+}
