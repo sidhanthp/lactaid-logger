@@ -6,6 +6,7 @@ export async function POST(request: NextRequest) {
   const formData = await request.formData();
   const image = formData.get('image') as File | null;
   const mealsJson = formData.get('meals') as string | null;
+  const context = (formData.get('context') as string | null)?.trim() || '';
 
   if (!image) {
     return Response.json({ error: 'No image provided' }, { status: 400 });
@@ -81,7 +82,7 @@ Return ONLY valid JSON. Format:
           {
             role: 'user',
             content: [
-              { type: 'text', text: 'Analyze this meal photo for dairy content and Lactaid dosage:' },
+              { type: 'text', text: `Analyze this meal photo for dairy content and Lactaid dosage.${context ? `\n\nAdditional context from user: ${context}` : ''}` },
               { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}` } },
             ],
           },
