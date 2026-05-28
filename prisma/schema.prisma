@@ -1,0 +1,21 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Meal {
+  id                   String    @id @default(uuid())
+  createdAt            DateTime  @default(now())
+  food                 String
+  dairyLevel           String
+  estimatedLactoseGrams Float
+  lactaidPills         Int
+  symptoms             String?
+  symptomNotes         String    @default("")
+
+  @@map("meals")
+}

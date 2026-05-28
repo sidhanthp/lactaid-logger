@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Clock, Trash2, MessageCircle, X } from 'lucide-react';
 import { MealEntry, SymptomLevel } from '@/lib/types';
 import { DAIRY_LEVEL_INFO } from '@/lib/dairy';
-import { updateMeal, deleteMeal } from '@/lib/storage';
+import { updateMealApi, deleteMealApi } from '@/lib/storage';
 
 interface HistoryProps {
   meals: MealEntry[];
@@ -15,15 +15,15 @@ export default function History({ meals, onUpdate }: HistoryProps) {
   const [symptomModalId, setSymptomModalId] = useState<string | null>(null);
   const [symptomNotes, setSymptomNotes] = useState('');
 
-  function handleSymptomSelect(mealId: string, symptom: SymptomLevel) {
-    updateMeal(mealId, { symptoms: symptom, symptomNotes });
+  async function handleSymptomSelect(mealId: string, symptom: SymptomLevel) {
+    await updateMealApi(mealId, { symptoms: symptom, symptomNotes });
     setSymptomModalId(null);
     setSymptomNotes('');
     onUpdate();
   }
 
-  function handleDelete(id: string) {
-    deleteMeal(id);
+  async function handleDelete(id: string) {
+    await deleteMealApi(id);
     onUpdate();
   }
 

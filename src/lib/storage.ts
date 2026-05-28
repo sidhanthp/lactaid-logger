@@ -1,55 +1,43 @@
 import { MealEntry, DairyLevel } from './types';
-import { v4 as uuidv4 } from 'uuid';
 
-const STORAGE_KEY = 'lactaid-logger-meals';
+const API_BASE = '/api/meals';
 
-export function getMeals(): MealEntry[] {
-  if (typeof window === 'undefined') return [];
+export async function fetchMeals(): Promise<MealEntry[]> {
   try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : [];
+    const res = await fetch(API_BASE);
+    if (!res.ok) throw new Error('API error');
+    return await res.json();
   } catch {
     return [];
   }
 }
 
-export function createAndSaveMeal(params: {
+export async function createMeal(params: {
   food: string;
   dairyLevel: DairyLevel;
   estimatedLactoseGrams: number;
   lactaidPills: number;
-}): void {
-  const meal: MealEntry = {
-    id: uuidv4(),
-    timestamp: Date.now(),
-    food: params.food,
-    dairyLevel: params.dairyLevel,
-    estimatedLactoseGrams: params.estimatedLactoseGrams,
-    lactaidPills: params.lactaidPills,
-    symptoms: null,
-    symptomNotes: '',
-  };
-  const meals = getMeals();
-  meals.unshift(meal);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(meals));
+}): Promise<MealEntry> {
+  const res = await fetch(API_BASE, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) throw new Error('Failed to create meal');
+  return await res.json();
 }
 
-export function saveMeal(meal: MealEntry): void {
-  const meals = getMeals();
-  meals.unshift(meal);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(meals));
+export async function updateMealApi(id: string, updates: Partial<MealEntry>): Promise<MealEntry> {
+  const res = await fetch(`${API_BASE}/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  });
+  if (!res.ok) throw new Error('Failed to update meal');
+  return await res.json();
 }
 
-export function updateMeal(id: string, updates: Partial<MealEntry>): void {
-  const meals = getMeals();
-  const index = meals.findIndex(m => m.id === id);
-  if (index !== -1) {
-    meals[index] = { ...meals[index], ...updates };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(meals));
-  }
-}
-
-export function deleteMeal(id: string): void {
-  const meals = getMeals().filter(m => m.id !== id);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(meals));
+export async function deleteMealApi(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete meal');
 }

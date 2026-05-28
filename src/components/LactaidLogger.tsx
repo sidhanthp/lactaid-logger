@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { PlusCircle, Clock, Lightbulb } from 'lucide-react';
 import { TabType, MealEntry } from '@/lib/types';
-import { getMeals } from '@/lib/storage';
+import { fetchMeals } from '@/lib/storage';
 import LogMeal from './LogMeal';
 import History from './History';
 import Insights from './Insights';
@@ -16,10 +16,23 @@ const TABS: { id: TabType; label: string; icon: typeof PlusCircle }[] = [
 
 export default function LactaidLogger() {
   const [activeTab, setActiveTab] = useState<TabType>('log');
-  const [meals, setMeals] = useState<MealEntry[]>(() => getMeals());
+  const [meals, setMeals] = useState<MealEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const isMounted = useRef(false);
 
-  const refreshMeals = useCallback(() => {
-    setMeals(getMeals());
+  useEffect(() => {
+    if (!isMounted.current) {
+      isMounted.current = true;
+      fetchMeals().then(data => {
+        setMeals(data);
+        setLoading(false);
+      });
+    }
+  }, []);
+
+  const refreshMeals = useCallback(async () => {
+    const data = await fetchMeals();
+    setMeals(data);
   }, []);
 
   function handleMealLogged() {
@@ -48,9 +61,18 @@ export default function LactaidLogger() {
 
       {/* Content */}
       <main className="flex-1 max-w-lg mx-auto w-full px-4 py-6 pb-24">
-        {activeTab === 'log' && <LogMeal onMealSaved={refreshMeals} onMealLogged={handleMealLogged} />}
-        {activeTab === 'history' && <History meals={meals} onUpdate={refreshMeals} />}
-        {activeTab === 'insights' && <Insights meals={meals} />}
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20 animate-fade-in">
+            <div className="text-4xl mb-4 animate-bounce-in">💊</div>
+            <p className="text-gray-500">Loading your meals...</p>
+          </div>
+        ) : (
+          <>
+            {activeTab === 'log' && <LogMeal onMealSaved={refreshMeals} onMealLogged={handleMealLogged} />}
+            {activeTab === 'history' && <History meals={meals} onUpdate={refreshMeals} />}
+            {activeTab === 'insights' && <Insights meals={meals} />}
+          </>
+        )}
       </main>
 
       {/* Bottom Tab Bar */}

@@ -4,7 +4,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { Search, ChevronRight, ChevronLeft, Minus, Plus, Check, Pill } from 'lucide-react';
 import { DairyLevel } from '@/lib/types';
 import { DAIRY_FOODS, DAIRY_LEVEL_INFO, searchFoods, estimateDairyLevel } from '@/lib/dairy';
-import { createAndSaveMeal } from '@/lib/storage';
+import { createMeal } from '@/lib/storage';
 
 interface LogMealProps {
   onMealSaved: () => void;
@@ -58,8 +58,8 @@ export default function LogMeal({ onMealSaved, onMealLogged }: LogMealProps) {
     setStep('dairy');
   }
 
-  function handleSave() {
-    createAndSaveMeal({
+  async function handleSave() {
+    await createMeal({
       food: selectedFood,
       dairyLevel,
       estimatedLactoseGrams: lactoseGrams,
