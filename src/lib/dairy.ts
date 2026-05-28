@@ -73,9 +73,9 @@ export function searchFoods(query: string): DairyFood[] {
 
 export function estimateDairyLevel(lactoseGrams: number): DairyLevel {
   if (lactoseGrams <= 0) return 'none';
-  if (lactoseGrams <= 0.5) return 'trace';
-  if (lactoseGrams <= 2) return 'low';
-  if (lactoseGrams <= 4) return 'medium';
-  if (lactoseGrams <= 8) return 'high';
+  if (lactoseGrams < 0.5) return 'trace';
+  if (lactoseGrams < 2) return 'low';
+  if (lactoseGrams < 4) return 'medium';
+  if (lactoseGrams < 8) return 'high';
   return 'very_high';
 }
