@@ -46,6 +46,8 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
   const [photoResult, setPhotoResult] = useState<PhotoAnalysisResult | null>(null);
   const [photoError, setPhotoError] = useState('');
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoContext, setPhotoContext] = useState('');
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -169,18 +171,15 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
     if (photoPreview) URL.revokeObjectURL(photoPreview);
   }
 
-  async function handlePhotoCapture(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  async function analyzePhoto(file: File, context: string) {
     setPhotoLoading(true);
     setPhotoError('');
     setPhotoResult(null);
-    revokePreview();
-    setPhotoPreview(URL.createObjectURL(file));
     try {
       const formData = new FormData();
       formData.append('image', file);
       formData.append('meals', JSON.stringify(meals));
+      if (context) formData.append('context', context);
       const res = await fetch('/api/analyze-photo', { method: 'POST', body: formData });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
@@ -189,8 +188,23 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
       setPhotoError(err instanceof Error ? err.message : 'Failed to analyze photo');
     } finally {
       setPhotoLoading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  }
+
+  async function handlePhotoCapture(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    revokePreview();
+    setPhotoPreview(URL.createObjectURL(file));
+    setPendingFile(file);
+    setPhotoContext('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    await analyzePhoto(file, '');
+  }
+
+  async function handleReanalyzeWithContext() {
+    if (!pendingFile) return;
+    await analyzePhoto(pendingFile, photoContext);
   }
 
   function handlePhotoItemSelect(item: PhotoAnalysisResult['items'][0]) {
@@ -210,6 +224,8 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
     revokePreview();
     setPhotoPreview(null);
     setPhotoError('');
+    setPhotoContext('');
+    setPendingFile(null);
   }
 
   function resetForm() {
@@ -228,6 +244,8 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
     revokePreview();
     setPhotoPreview(null);
     setPhotoError('');
+    setPhotoContext('');
+    setPendingFile(null);
   }
 
   if (step === 'done') {
@@ -263,6 +281,26 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
                 <img src={photoPreview} alt="Meal" className="w-full h-32 object-cover" />
               </div>
             )}
+            <div className="flex gap-2 mb-2">
+              <input
+                type="text"
+                placeholder="Add context: &quot;sharing with 3 people&quot;, &quot;just my slice&quot;..."
+                value={photoContext}
+                onChange={e => setPhotoContext(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && photoContext.trim() && !photoLoading && handleReanalyzeWithContext()}
+                className="flex-1 px-3 py-2 rounded-xl bg-white/80 border border-sky-200 focus:outline-none focus:ring-2 focus:ring-sky-400 text-xs text-gray-800 placeholder:text-gray-400"
+              />
+              {photoContext.trim() && (
+                <button
+                  onClick={handleReanalyzeWithContext}
+                  disabled={photoLoading}
+                  className="px-3 py-2 rounded-xl bg-sky-500 text-white text-xs font-medium disabled:opacity-40 hover:bg-sky-600 active:scale-95 transition-all flex items-center gap-1"
+                >
+                  {photoLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                  <span>Update</span>
+                </button>
+              )}
+            </div>
             {photoLoading && (
               <div className="flex items-center gap-2 p-3">
                 <Loader2 className="w-4 h-4 animate-spin text-sky-500" />
