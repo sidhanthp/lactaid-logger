@@ -45,24 +45,36 @@ export async function POST(request: NextRequest) {
 
   const systemPrompt = `You analyze photos of food/meals to identify dairy content for someone with lactose intolerance.
 
-Look at the photo and identify every food item visible. For each item, determine:
-- food: descriptive name
+Look at the photo carefully. Estimate portion sizes from visual cues (plate size, utensils, hands for scale). For each food item visible, determine:
+- food: descriptive name including estimated portion (e.g. "2 slices pepperoni pizza", "small latte ~8oz")
 - dairyLevel: one of "none", "trace", "low", "medium", "high", "very_high"  
-- estimatedLactoseGrams: number 0-20
+- estimatedLactoseGrams: number 0-20 (be precise based on portion)
 - hasDairy: boolean
 
-Dairy level guide:
-- none: 0g (salad, rice, fruit, grilled meat, bread)
-- trace: <0.5g (butter, hard aged cheese, dark chocolate)
-- low: 0.5-2g (coffee with cream, cookie, light cheese sauce)
-- medium: 2-4g (cheeseburger, pancakes, cream soup)
-- high: 4-8g (pizza, mac & cheese, yogurt, cream cheese bagel)
-- very_high: 8g+ (ice cream, glass of milk, milkshake, cheesecake, alfredo pasta)
+Science-backed lactose reference values per standard serving:
+- Whole milk (250ml/8oz): 12g | Skim milk: 13g
+- Heavy cream (30ml): 0.4g | Half-and-half (30ml): 0.6g
+- Butter (1 tbsp/14g): 0.01g (essentially zero)
+- Cheddar/Parmesan/Swiss (28g): 0.05-0.1g (aged = very low)
+- Mozzarella (28g): 0.5g | Cream cheese (28g): 0.8g
+- Cottage cheese (113g): 3.5g | Ricotta (60g): 1.5g
+- Yogurt (170g): 4-8g (Greek ~4g, regular ~8g)
+- Ice cream (1/2 cup/65g): 4-6g
+- Sour cream (30ml): 0.4g | Whipped cream (30ml): 0.4g
+
+Key principles:
+- Aged/fermented dairy has much less lactose than fresh
+- Cooking does NOT destroy lactose (it's heat-stable)
+- Fermentation reduces lactose (yogurt, aged cheese)
+- Scale estimates by actual portion visible in the photo
+- Pizza: ~0.5g per oz mozzarella, typical slice has 2-3oz
+
+Dairy levels: none=0g, trace=<0.5g, low=0.5-2g, medium=2-4g, high=4-8g, very_high=8g+
 
 Also provide:
 - totalLactoseGrams: sum of all items
-- recommendedPills: number of Lactaid pills for the whole meal
-- summary: 1-2 sentence summary of the dairy content${pillContext}
+- recommendedPills: Lactaid pills for the whole meal (1 pill per ~4-5g lactose is typical)
+- summary: 1-2 sentence summary noting key dairy sources and portions${pillContext}
 
 Return ONLY valid JSON. Format:
 {"items":[{"food":"...","dairyLevel":"...","estimatedLactoseGrams":0,"hasDairy":true}],"totalLactoseGrams":0,"recommendedPills":0,"summary":"..."}`;
