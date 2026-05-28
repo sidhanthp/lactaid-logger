@@ -1,0 +1,21 @@
+{
+  "name": "Lactaid Logger",
+  "short_name": "LactaidLog",
+  "description": "Track dairy intake, Lactaid dosage, and symptoms to learn your personal lactose tolerance.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f0a1e",
+  "theme_color": "#1e1b4b",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
