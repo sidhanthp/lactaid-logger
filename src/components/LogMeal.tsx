@@ -33,11 +33,11 @@ export default function LogMeal({ onMealLogged }: LogMealProps) {
     return cats;
   }, [filteredFoods]);
 
-  function selectFood(name: string, lactose: number, emoji: string) {
+  function selectFood(name: string, lactose: number, emoji: string, level: DairyLevel) {
     setSelectedFood(name);
     setSelectedEmoji(emoji);
     setLactoseGrams(lactose);
-    setDairyLevel(estimateDairyLevel(lactose));
+    setDairyLevel(level);
     setStep('dairy');
   }
 
@@ -127,7 +127,7 @@ export default function LogMeal({ onMealLogged }: LogMealProps) {
                 {foods.map(food => (
                   <button
                     key={food.name}
-                    onClick={() => selectFood(food.name, food.lactoseGrams, food.emoji)}
+                    onClick={() => selectFood(food.name, food.lactoseGrams, food.emoji, food.dairyLevel)}
                     className="flex items-center gap-3 p-3 rounded-2xl bg-white/60 hover:bg-white/90 border border-gray-100 hover:border-gray-200 transition-all active:scale-[0.98] text-left"
                   >
                     <span className="text-2xl">{food.emoji}</span>
