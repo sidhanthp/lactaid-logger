@@ -111,7 +111,25 @@ Return ONLY valid JSON. Format:
       parsed = JSON.parse(jsonMatch[0]);
     }
 
-    return Response.json(parsed);
+    const validLevels = ['none', 'trace', 'low', 'medium', 'high', 'very_high'];
+    const items = (Array.isArray(parsed.items) ? parsed.items : [])
+      .filter((item: Record<string, unknown>) =>
+        typeof item.food === 'string' && item.food.length > 0
+      )
+      .map((item: Record<string, unknown>) => ({
+        food: String(item.food).slice(0, 100),
+        dairyLevel: validLevels.includes(item.dairyLevel as string)
+          ? item.dairyLevel
+          : 'medium',
+        estimatedLactoseGrams: Math.max(0, Math.min(20, Number(item.estimatedLactoseGrams) || 0)),
+        hasDairy: Boolean(item.hasDairy),
+      }));
+
+    const totalLactoseGrams = Math.max(0, Number(parsed.totalLactoseGrams) || items.reduce((s: number, i: { estimatedLactoseGrams: number }) => s + i.estimatedLactoseGrams, 0));
+    const recommendedPills = Math.max(0, Math.min(10, Math.round(Number(parsed.recommendedPills) || 0)));
+    const summary = typeof parsed.summary === 'string' ? parsed.summary.slice(0, 300) : '';
+
+    return Response.json({ items, totalLactoseGrams, recommendedPills, summary });
   } catch (err) {
     console.error('Photo analysis error:', err);
     return Response.json({ error: 'Failed to analyze photo' }, { status: 500 });

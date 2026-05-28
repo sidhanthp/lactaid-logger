@@ -165,12 +165,17 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
     setStep('lactaid');
   }
 
+  function revokePreview() {
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
+  }
+
   async function handlePhotoCapture(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setPhotoLoading(true);
     setPhotoError('');
     setPhotoResult(null);
+    revokePreview();
     setPhotoPreview(URL.createObjectURL(file));
     try {
       const formData = new FormData();
@@ -195,12 +200,14 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
     const known = DAIRY_FOODS.find(f => f.name === item.food);
     setSelectedEmoji(known?.emoji ?? '🍽');
     setPhotoResult(null);
+    revokePreview();
     setPhotoPreview(null);
     setStep('lactaid');
   }
 
   function dismissPhoto() {
     setPhotoResult(null);
+    revokePreview();
     setPhotoPreview(null);
     setPhotoError('');
   }
@@ -218,6 +225,7 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
     setAiResults(null);
     setAiError('');
     setPhotoResult(null);
+    revokePreview();
     setPhotoPreview(null);
     setPhotoError('');
   }
