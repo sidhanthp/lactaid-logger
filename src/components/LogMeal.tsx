@@ -48,6 +48,7 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const estimateAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     return () => {
@@ -78,6 +79,9 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
   }, [filteredFoods]);
 
   function selectFood(name: string, lactose: number, emoji: string, level: DairyLevel) {
+    if (estimateAbortRef.current) estimateAbortRef.current.abort();
+    setEstimating(false);
+    setEstimateReasoning('');
     setSelectedFood(name);
     setSelectedEmoji(emoji);
     setLactoseGrams(lactose);
@@ -107,29 +111,32 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
     const food = customFood.trim();
     setSelectedFood(food);
     setSelectedEmoji('🍽');
+    setLactoseGrams(3);
+    setDairyLevel('medium');
     setEstimating(true);
     setEstimateReasoning('');
     setStep('dairy');
+    if (estimateAbortRef.current) estimateAbortRef.current.abort();
+    const controller = new AbortController();
+    estimateAbortRef.current = controller;
     try {
       const res = await fetch('/api/estimate-dairy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ food }),
+        signal: controller.signal,
       });
+      if (controller.signal.aborted) return;
       if (res.ok) {
         const data = await res.json();
         setLactoseGrams(data.estimatedLactoseGrams);
         setDairyLevel(data.dairyLevel);
         if (data.reasoning) setEstimateReasoning(data.reasoning);
-      } else {
-        setLactoseGrams(3);
-        setDairyLevel('medium');
       }
-    } catch {
-      setLactoseGrams(3);
-      setDairyLevel('medium');
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
     } finally {
-      setEstimating(false);
+      if (!controller.signal.aborted) setEstimating(false);
     }
   }
 
@@ -536,7 +543,8 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
 
         <button
           onClick={() => setStep('lactaid')}
-          className="w-full py-4 rounded-2xl bg-indigo-500 text-white font-semibold text-lg hover:bg-indigo-600 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+          disabled={estimating}
+          className="w-full py-4 rounded-2xl bg-indigo-500 text-white font-semibold text-lg hover:bg-indigo-600 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
         >
           Next <ChevronRight className="w-5 h-5" />
         </button>
