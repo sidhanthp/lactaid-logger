@@ -80,7 +80,7 @@ export default function History({ meals, onUpdate }: HistoryProps) {
                 meal={meal}
                 formatTime={formatTime}
                 formatFullDate={formatFullDate}
-                onSymptomClick={() => setSymptomModalId(meal.id)}
+                onSymptomClick={() => { setSymptomModalId(meal.id); setSymptomNotes(meal.symptomNotes); }}
                 onDelete={() => handleDelete(meal.id)}
                 highlight
               />
@@ -99,7 +99,7 @@ export default function History({ meals, onUpdate }: HistoryProps) {
                 meal={meal}
                 formatTime={formatTime}
                 formatFullDate={formatFullDate}
-                onSymptomClick={() => setSymptomModalId(meal.id)}
+                onSymptomClick={() => { setSymptomModalId(meal.id); setSymptomNotes(meal.symptomNotes); }}
                 onDelete={() => handleDelete(meal.id)}
               />
             ))}
