@@ -7,12 +7,13 @@ import { DAIRY_FOODS, DAIRY_LEVEL_INFO, searchFoods, estimateDairyLevel } from '
 import { createAndSaveMeal } from '@/lib/storage';
 
 interface LogMealProps {
+  onMealSaved: () => void;
   onMealLogged: () => void;
 }
 
 type Step = 'food' | 'dairy' | 'lactaid' | 'done';
 
-export default function LogMeal({ onMealLogged }: LogMealProps) {
+export default function LogMeal({ onMealSaved, onMealLogged }: LogMealProps) {
   const [step, setStep] = useState<Step>('food');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFood, setSelectedFood] = useState('');
@@ -64,6 +65,7 @@ export default function LogMeal({ onMealLogged }: LogMealProps) {
       estimatedLactoseGrams: lactoseGrams,
       lactaidPills,
     });
+    onMealSaved();
     setStep('done');
     timeoutRef.current = setTimeout(() => {
       onMealLogged();

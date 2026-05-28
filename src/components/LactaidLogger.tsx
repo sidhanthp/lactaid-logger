@@ -48,7 +48,7 @@ export default function LactaidLogger() {
 
       {/* Content */}
       <main className="flex-1 max-w-lg mx-auto w-full px-4 py-6 pb-24">
-        {activeTab === 'log' && <LogMeal onMealLogged={handleMealLogged} />}
+        {activeTab === 'log' && <LogMeal onMealSaved={refreshMeals} onMealLogged={handleMealLogged} />}
         {activeTab === 'history' && <History meals={meals} onUpdate={refreshMeals} />}
         {activeTab === 'insights' && <Insights meals={meals} />}
       </main>
