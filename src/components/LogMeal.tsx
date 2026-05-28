@@ -1,10 +1,16 @@
 'use client';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { Search, ChevronRight, ChevronLeft, Minus, Plus, Check, Pill, Zap } from 'lucide-react';
+import { Search, ChevronRight, ChevronLeft, Minus, Plus, Check, Pill, Zap, Sparkles, Loader2 } from 'lucide-react';
 import { DairyLevel, MealEntry } from '@/lib/types';
 import { DAIRY_FOODS, DAIRY_LEVEL_INFO, searchFoods, estimateDairyLevel } from '@/lib/dairy';
 import { createMeal } from '@/lib/storage';
+
+interface AiParsedMeal {
+  food: string;
+  dairyLevel: DairyLevel;
+  estimatedLactoseGrams: number;
+}
 
 interface LogMealProps {
   meals: MealEntry[];
@@ -23,6 +29,10 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
   const [dairyLevel, setDairyLevel] = useState<DairyLevel>('none');
   const [lactaidPills, setLactaidPills] = useState(0);
   const [customFood, setCustomFood] = useState('');
+  const [aiInput, setAiInput] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiResults, setAiResults] = useState<AiParsedMeal[] | null>(null);
+  const [aiError, setAiError] = useState('');
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -99,6 +109,39 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
     }, 1500);
   }
 
+  async function handleAiParse() {
+    if (!aiInput.trim()) return;
+    setAiLoading(true);
+    setAiError('');
+    setAiResults(null);
+    try {
+      const res = await fetch('/api/parse-meal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: aiInput }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      if (!data.meals?.length) throw new Error('No foods found');
+      setAiResults(data.meals);
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'Failed to parse');
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
+  async function handleAiSave(meal: AiParsedMeal) {
+    setSelectedFood(meal.food);
+    setLactoseGrams(meal.estimatedLactoseGrams);
+    setDairyLevel(meal.dairyLevel);
+    const known = DAIRY_FOODS.find(f => f.name === meal.food);
+    setSelectedEmoji(known?.emoji ?? '🍽');
+    setAiResults(null);
+    setAiInput('');
+    setStep('lactaid');
+  }
+
   function resetForm() {
     setStep('food');
     setSearchQuery('');
@@ -108,6 +151,9 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
     setDairyLevel('none');
     setLactaidPills(0);
     setCustomFood('');
+    setAiInput('');
+    setAiResults(null);
+    setAiError('');
   }
 
   if (step === 'done') {
@@ -124,6 +170,49 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
     return (
       <div className="flex flex-col gap-4 animate-fade-in">
         <h2 className="text-xl font-bold text-gray-800">What did you eat?</h2>
+
+        {/* AI Natural Language Input */}
+        <div className="bg-gradient-to-br from-violet-50 to-purple-50 rounded-2xl p-3 border border-violet-200/60">
+          <div className="flex items-center gap-1.5 mb-2 px-1">
+            <Sparkles className="w-3.5 h-3.5 text-violet-500" />
+            <span className="text-xs font-semibold text-violet-600 uppercase tracking-wider">AI Input</span>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder='"latte and pizza for lunch"'
+              value={aiInput}
+              onChange={e => { setAiInput(e.target.value); setAiError(''); }}
+              onKeyDown={e => e.key === 'Enter' && handleAiParse()}
+              className="flex-1 px-3 py-2.5 rounded-xl bg-white/80 border border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-400 text-sm text-gray-800 placeholder:text-gray-400"
+            />
+            <button
+              onClick={handleAiParse}
+              disabled={!aiInput.trim() || aiLoading}
+              className="px-4 py-2.5 rounded-xl bg-violet-500 text-white text-sm font-medium disabled:opacity-40 hover:bg-violet-600 active:scale-95 transition-all flex items-center gap-1.5"
+            >
+              {aiLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            </button>
+          </div>
+          {aiError && <p className="text-xs text-red-500 mt-1.5 px-1">{aiError}</p>}
+          {aiResults && (
+            <div className="mt-2 space-y-1.5">
+              {aiResults.map((m, i) => (
+                <button
+                  key={i}
+                  onClick={() => handleAiSave(m)}
+                  className="flex items-center justify-between w-full p-2.5 rounded-xl bg-white/80 border border-violet-100 hover:border-violet-300 transition-all active:scale-[0.98] text-left"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800">{m.food}</p>
+                    <p className="text-[10px] text-gray-500">{m.estimatedLactoseGrams}g lactose · {DAIRY_LEVEL_INFO[m.dairyLevel].label}</p>
+                  </div>
+                  <span className="text-xs text-violet-500 font-medium">+ Add</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         {frequentFoods.length > 0 && !searchQuery && (
           <div>
