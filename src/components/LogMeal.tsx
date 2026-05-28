@@ -50,6 +50,7 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const estimateAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     return () => {
@@ -80,6 +81,9 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
   }, [filteredFoods]);
 
   function selectFood(name: string, lactose: number, emoji: string, level: DairyLevel) {
+    if (estimateAbortRef.current) estimateAbortRef.current.abort();
+    setEstimating(false);
+    setEstimateReasoning('');
     setSelectedFood(name);
     setSelectedEmoji(emoji);
     setLactoseGrams(lactose);
@@ -101,13 +105,41 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
     setLactaidPills(lastPills);
   }
 
-  function handleCustomFood() {
+  const [estimating, setEstimating] = useState(false);
+  const [estimateReasoning, setEstimateReasoning] = useState('');
+
+  async function handleCustomFood() {
     if (!customFood.trim()) return;
-    setSelectedFood(customFood.trim());
+    const food = customFood.trim();
+    setSelectedFood(food);
     setSelectedEmoji('🍽');
     setLactoseGrams(3);
     setDairyLevel('medium');
+    setEstimating(true);
+    setEstimateReasoning('');
     setStep('dairy');
+    if (estimateAbortRef.current) estimateAbortRef.current.abort();
+    const controller = new AbortController();
+    estimateAbortRef.current = controller;
+    try {
+      const res = await fetch('/api/estimate-dairy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ food }),
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
+      if (res.ok) {
+        const data = await res.json();
+        setLactoseGrams(data.estimatedLactoseGrams);
+        setDairyLevel(data.dairyLevel);
+        if (data.reasoning) setEstimateReasoning(data.reasoning);
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+    } finally {
+      if (!controller.signal.aborted) setEstimating(false);
+    }
   }
 
   async function handleSave() {
@@ -503,15 +535,28 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
         <div className="bg-white/60 rounded-3xl p-6 border border-gray-100">
           <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Estimated Dairy Content</h3>
 
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-3xl font-bold text-gray-800">{lactoseGrams}g</span>
-            <span
-              className="text-sm font-semibold px-3 py-1.5 rounded-full"
-              style={{ backgroundColor: levelInfo.color + '20', color: levelInfo.color }}
-            >
-              {levelInfo.emoji} {levelInfo.label}
-            </span>
-          </div>
+          {estimating ? (
+            <div className="flex items-center gap-2 py-4 justify-center">
+              <Loader2 className="w-5 h-5 animate-spin text-indigo-500" />
+              <span className="text-sm text-indigo-600">Estimating dairy content...</span>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-3xl font-bold text-gray-800">{lactoseGrams}g</span>
+                <span
+                  className="text-sm font-semibold px-3 py-1.5 rounded-full"
+                  style={{ backgroundColor: levelInfo.color + '20', color: levelInfo.color }}
+                >
+                  {levelInfo.emoji} {levelInfo.label}
+                </span>
+              </div>
+
+              {estimateReasoning && (
+                <p className="text-xs text-indigo-600 bg-indigo-50 rounded-xl px-3 py-2 mb-3">{estimateReasoning}</p>
+              )}
+            </>
+          )}
 
           <p className="text-sm text-gray-500 mb-4">{levelInfo.description}</p>
 
@@ -536,7 +581,8 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
 
         <button
           onClick={() => setStep('lactaid')}
-          className="w-full py-4 rounded-2xl bg-indigo-500 text-white font-semibold text-lg hover:bg-indigo-600 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+          disabled={estimating}
+          className="w-full py-4 rounded-2xl bg-indigo-500 text-white font-semibold text-lg hover:bg-indigo-600 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
         >
           Next <ChevronRight className="w-5 h-5" />
         </button>
