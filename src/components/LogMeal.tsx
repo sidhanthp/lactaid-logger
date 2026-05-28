@@ -33,6 +33,7 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResults, setAiResults] = useState<AiParsedMeal[] | null>(null);
   const [aiError, setAiError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -95,18 +96,24 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
   }
 
   async function handleSave() {
-    await createMeal({
-      food: selectedFood,
-      dairyLevel,
-      estimatedLactoseGrams: lactoseGrams,
-      lactaidPills,
-    });
-    onMealSaved();
-    setStep('done');
-    timeoutRef.current = setTimeout(() => {
-      onMealLogged();
-      resetForm();
-    }, 1500);
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      await createMeal({
+        food: selectedFood,
+        dairyLevel,
+        estimatedLactoseGrams: lactoseGrams,
+        lactaidPills,
+      });
+      onMealSaved();
+      setStep('done');
+      timeoutRef.current = setTimeout(() => {
+        onMealLogged();
+        resetForm();
+      }, 1500);
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   async function handleAiParse() {
@@ -415,7 +422,8 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
 
         <button
           onClick={handleSave}
-          className="w-full py-4 rounded-2xl bg-emerald-500 text-white font-semibold text-lg hover:bg-emerald-600 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+          disabled={isSaving}
+          className="w-full py-4 rounded-2xl bg-emerald-500 text-white font-semibold text-lg hover:bg-emerald-600 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
         >
           <Check className="w-5 h-5" /> Save Meal
         </button>

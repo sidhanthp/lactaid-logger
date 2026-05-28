@@ -64,7 +64,7 @@ Output: [{"food":"Latte","dairyLevel":"low","estimatedLactoseGrams":2},{"food":"
     const data = await res.json();
     const content = data.choices?.[0]?.message?.content?.trim() ?? '';
 
-    const jsonMatch = content.match(/\[[\s\S]*\]/);
+    const jsonMatch = content.match(/\[[\s\S]*?\]/);
     if (!jsonMatch) {
       return Response.json({ error: 'Could not parse AI response' }, { status: 422 });
     }
