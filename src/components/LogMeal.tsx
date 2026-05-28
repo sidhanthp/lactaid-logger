@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { Search, ChevronRight, ChevronLeft, Minus, Plus, Check, Pill } from 'lucide-react';
 import { DairyLevel } from '@/lib/types';
 import { DAIRY_FOODS, DAIRY_LEVEL_INFO, searchFoods, estimateDairyLevel } from '@/lib/dairy';
@@ -21,6 +21,13 @@ export default function LogMeal({ onMealLogged }: LogMealProps) {
   const [dairyLevel, setDairyLevel] = useState<DairyLevel>('none');
   const [lactaidPills, setLactaidPills] = useState(0);
   const [customFood, setCustomFood] = useState('');
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
 
   const filteredFoods = useMemo(() => searchFoods(searchQuery), [searchQuery]);
 
@@ -58,7 +65,7 @@ export default function LogMeal({ onMealLogged }: LogMealProps) {
       lactaidPills,
     });
     setStep('done');
-    setTimeout(() => {
+    timeoutRef.current = setTimeout(() => {
       onMealLogged();
       resetForm();
     }, 1500);
