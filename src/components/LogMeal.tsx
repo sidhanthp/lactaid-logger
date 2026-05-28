@@ -638,8 +638,8 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
               </p>
               <p className="text-xs text-indigo-500">
                 {hasPersonalData
-                  ? `Based on your ${rec.dataPoints} past ${dairyLevel}-dairy meal${rec.dataPoints !== 1 ? 's' : ''} · ${rec.confidence} confidence`
-                  : `Default for ${dairyLevel} dairy`
+                  ? `Based on your ${rec.dataPoints} past ${DAIRY_LEVEL_INFO[dairyLevel]?.label.toLowerCase() ?? dairyLevel}-dairy meal${rec.dataPoints !== 1 ? 's' : ''} · ${rec.confidence} confidence`
+                  : `Default for ${DAIRY_LEVEL_INFO[dairyLevel]?.label.toLowerCase() ?? dairyLevel} dairy`
                 }
               </p>
             </div>
