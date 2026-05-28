@@ -5,6 +5,7 @@ import { Search, ChevronRight, ChevronLeft, Minus, Plus, Check, Pill, Zap, Spark
 import { DairyLevel, MealEntry } from '@/lib/types';
 import { DAIRY_FOODS, DAIRY_LEVEL_INFO, searchFoods, estimateDairyLevel } from '@/lib/dairy';
 import { createMeal } from '@/lib/storage';
+import { getRecommendations } from '@/lib/recommendations';
 
 interface AiParsedMeal {
   food: string;
@@ -57,6 +58,11 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, []);
+
+  const pillRecommendation = useMemo(() => {
+    const recs = getRecommendations(meals);
+    return recs.find(r => r.dairyLevel === dairyLevel);
+  }, [meals, dairyLevel]);
 
   const frequentFoods = useMemo(() => {
     const counts: Record<string, { count: number; lastPills: number; food: string }> = {};
@@ -580,7 +586,12 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
         </div>
 
         <button
-          onClick={() => setStep('lactaid')}
+          onClick={() => {
+            if (pillRecommendation && lactaidPills === 0) {
+              setLactaidPills(pillRecommendation.recommendedPills);
+            }
+            setStep('lactaid');
+          }}
           disabled={estimating}
           className="w-full py-4 rounded-2xl bg-indigo-500 text-white font-semibold text-lg hover:bg-indigo-600 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
         >
@@ -591,6 +602,8 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
   }
 
   if (step === 'lactaid') {
+    const rec = pillRecommendation;
+    const hasPersonalData = rec && rec.dataPoints > 0;
     return (
       <div className="flex flex-col gap-6 animate-fade-in">
         <button onClick={() => setStep('dairy')} className="flex items-center gap-1 text-gray-500 hover:text-gray-700 w-fit">
@@ -606,6 +619,35 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
             For <span className="font-medium">{selectedFood}</span> ({lactoseGrams}g lactose)
           </p>
         </div>
+
+        {rec && (
+          <button
+            onClick={() => setLactaidPills(rec.recommendedPills)}
+            className={`flex items-center gap-3 p-3 rounded-2xl border transition-all active:scale-[0.98] ${
+              lactaidPills === rec.recommendedPills
+                ? 'bg-indigo-50 border-indigo-300'
+                : 'bg-gradient-to-r from-indigo-50 to-violet-50 border-indigo-200 hover:border-indigo-300'
+            }`}
+          >
+            <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-5 h-5 text-indigo-500" />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="text-sm font-semibold text-indigo-700">
+                Take {rec.recommendedPills} pill{rec.recommendedPills !== 1 ? 's' : ''}
+              </p>
+              <p className="text-xs text-indigo-500">
+                {hasPersonalData
+                  ? `Based on your ${rec.dataPoints} past ${dairyLevel}-dairy meal${rec.dataPoints !== 1 ? 's' : ''} · ${rec.confidence} confidence`
+                  : `Default for ${dairyLevel} dairy`
+                }
+              </p>
+            </div>
+            {lactaidPills === rec.recommendedPills && (
+              <Check className="w-4 h-4 text-indigo-500" />
+            )}
+          </button>
+        )}
 
         <div className="bg-white/60 rounded-3xl p-8 border border-gray-100">
           <div className="flex items-center justify-center gap-6">
