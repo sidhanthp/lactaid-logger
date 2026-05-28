@@ -62,4 +62,5 @@ export interface UserStats {
   avgPillsPerMeal: number;
   symptomFreeRate: number;
   personalThreshold: number | null; // lactose grams per pill that works for this person
+  successfulPairedCount: number; // meals with symptom follow-up where no symptoms, pills>0, dairy>0
 }

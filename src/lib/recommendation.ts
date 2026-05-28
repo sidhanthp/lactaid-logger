@@ -125,6 +125,7 @@ export function getUserStats(): UserStats {
       avgPillsPerMeal: 0,
       symptomFreeRate: 0,
       personalThreshold: null,
+      successfulPairedCount: 0,
     };
   }
 
@@ -136,11 +137,16 @@ export function getUserStats(): UserStats {
   const symptomFreeRate =
     paired.length > 0 ? symptomFree / paired.length : 0;
 
+  const successfulPairedCount = paired.filter(
+    (e) => !e.symptom.hadSymptoms && e.meal.lactaidPills > 0 && e.meal.totalDairyGrams > 0
+  ).length;
+
   return {
     totalMeals: meals.length,
     avgDairyPerMeal: avgDairy,
     avgPillsPerMeal: avgPills,
     symptomFreeRate,
     personalThreshold: getPersonalThreshold(),
+    successfulPairedCount,
   };
 }

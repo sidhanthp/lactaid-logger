@@ -74,19 +74,19 @@ export default function Insights({ refreshKey }: InsightsProps) {
             Learning Your Threshold...
           </h3>
           <p className="text-white/60 text-sm">
-            Log at least 3 meals with symptom follow-ups to calculate your
+            Log at least 3 symptom-free meals (with Lactaid & dairy) to calculate your
             personal lactose-per-pill threshold.
           </p>
           <div className="mt-3 bg-white/10 rounded-full h-2 overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-blue-400 to-purple-400 rounded-full transition-all"
               style={{
-                width: `${Math.min(100, (stats.totalMeals / 3) * 100)}%`,
+                width: `${Math.min(100, (stats.successfulPairedCount / 3) * 100)}%`,
               }}
             />
           </div>
           <p className="text-white/40 text-xs mt-1">
-            {stats.totalMeals}/3 entries needed
+            {stats.successfulPairedCount}/3 successful entries logged
           </p>
         </div>
       )}
