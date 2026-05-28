@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { Search, ChevronRight, ChevronLeft, Minus, Plus, Check, Pill, Zap, Sparkles, Loader2 } from 'lucide-react';
+import { Search, ChevronRight, ChevronLeft, Minus, Plus, Check, Pill, Zap, Sparkles, Loader2, Camera, X } from 'lucide-react';
 import { DairyLevel, MealEntry } from '@/lib/types';
 import { DAIRY_FOODS, DAIRY_LEVEL_INFO, searchFoods, estimateDairyLevel } from '@/lib/dairy';
 import { createMeal } from '@/lib/storage';
@@ -10,6 +10,13 @@ interface AiParsedMeal {
   food: string;
   dairyLevel: DairyLevel;
   estimatedLactoseGrams: number;
+}
+
+interface PhotoAnalysisResult {
+  items: { food: string; dairyLevel: string; estimatedLactoseGrams: number; hasDairy: boolean }[];
+  totalLactoseGrams: number;
+  recommendedPills: number;
+  summary: string;
 }
 
 interface LogMealProps {
@@ -35,6 +42,11 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
   const [aiError, setAiError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [photoLoading, setPhotoLoading] = useState(false);
+  const [photoResult, setPhotoResult] = useState<PhotoAnalysisResult | null>(null);
+  const [photoError, setPhotoError] = useState('');
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -153,6 +165,46 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
     setStep('lactaid');
   }
 
+  async function handlePhotoCapture(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoLoading(true);
+    setPhotoError('');
+    setPhotoResult(null);
+    setPhotoPreview(URL.createObjectURL(file));
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      formData.append('meals', JSON.stringify(meals));
+      const res = await fetch('/api/analyze-photo', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      setPhotoResult(data);
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : 'Failed to analyze photo');
+    } finally {
+      setPhotoLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
+  function handlePhotoItemSelect(item: PhotoAnalysisResult['items'][0]) {
+    setSelectedFood(item.food);
+    setLactoseGrams(item.estimatedLactoseGrams);
+    setDairyLevel(item.dairyLevel as DairyLevel);
+    const known = DAIRY_FOODS.find(f => f.name === item.food);
+    setSelectedEmoji(known?.emoji ?? '🍽');
+    setPhotoResult(null);
+    setPhotoPreview(null);
+    setStep('lactaid');
+  }
+
+  function dismissPhoto() {
+    setPhotoResult(null);
+    setPhotoPreview(null);
+    setPhotoError('');
+  }
+
   function resetForm() {
     setStep('food');
     setSearchQuery('');
@@ -165,6 +217,9 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
     setAiInput('');
     setAiResults(null);
     setAiError('');
+    setPhotoResult(null);
+    setPhotoPreview(null);
+    setPhotoError('');
   }
 
   if (step === 'done') {
@@ -182,7 +237,65 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
       <div className="flex flex-col gap-4 animate-fade-in">
         <h2 className="text-xl font-bold text-gray-800">What did you eat?</h2>
 
-        {/* AI Natural Language Input */}
+        {/* Photo Analysis Result Overlay */}
+        {(photoPreview || photoResult) && (
+          <div className="bg-gradient-to-br from-sky-50 to-cyan-50 rounded-2xl p-3 border border-sky-200/60">
+            <div className="flex items-center justify-between mb-2 px-1">
+              <div className="flex items-center gap-1.5">
+                <Camera className="w-3.5 h-3.5 text-sky-500" />
+                <span className="text-xs font-semibold text-sky-600 uppercase tracking-wider">Photo Analysis</span>
+              </div>
+              <button onClick={dismissPhoto} className="p-1 rounded-full hover:bg-sky-100 transition-colors">
+                <X className="w-3.5 h-3.5 text-sky-400" />
+              </button>
+            </div>
+            {photoPreview && (
+              <div className="rounded-xl overflow-hidden mb-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={photoPreview} alt="Meal" className="w-full h-32 object-cover" />
+              </div>
+            )}
+            {photoLoading && (
+              <div className="flex items-center gap-2 p-3">
+                <Loader2 className="w-4 h-4 animate-spin text-sky-500" />
+                <span className="text-sm text-sky-600">Analyzing your meal...</span>
+              </div>
+            )}
+            {photoError && <p className="text-xs text-red-500 px-1">{photoError}</p>}
+            {photoResult && (
+              <div>
+                <p className="text-xs text-gray-600 px-1 mb-2">{photoResult.summary}</p>
+                <div className="flex items-center gap-2 mb-2 px-1">
+                  <span className="text-xs font-medium text-sky-700 bg-sky-100 px-2 py-0.5 rounded-full">
+                    {photoResult.totalLactoseGrams}g total lactose
+                  </span>
+                  <span className="text-xs font-medium text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">
+                    {photoResult.recommendedPills} pill{photoResult.recommendedPills !== 1 ? 's' : ''} recommended
+                  </span>
+                </div>
+                <div className="space-y-1.5">
+                  {photoResult.items.map((item, i) => (
+                    <button
+                      key={i}
+                      onClick={() => handlePhotoItemSelect(item)}
+                      className="flex items-center justify-between w-full p-2.5 rounded-xl bg-white/80 border border-sky-100 hover:border-sky-300 transition-all active:scale-[0.98] text-left"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800">{item.food}</p>
+                        <p className="text-[10px] text-gray-500">
+                          {item.estimatedLactoseGrams}g lactose · {item.hasDairy ? DAIRY_LEVEL_INFO[item.dairyLevel as DairyLevel]?.label ?? item.dairyLevel : 'Dairy free'}
+                        </p>
+                      </div>
+                      {item.hasDairy && <span className="text-xs text-sky-500 font-medium">+ Log</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* AI Input + Camera */}
         <div className="bg-gradient-to-br from-violet-50 to-purple-50 rounded-2xl p-3 border border-violet-200/60">
           <div className="flex items-center gap-1.5 mb-2 px-1">
             <Sparkles className="w-3.5 h-3.5 text-violet-500" />
@@ -200,9 +313,24 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
             <button
               onClick={handleAiParse}
               disabled={!aiInput.trim() || aiLoading}
-              className="px-4 py-2.5 rounded-xl bg-violet-500 text-white text-sm font-medium disabled:opacity-40 hover:bg-violet-600 active:scale-95 transition-all flex items-center gap-1.5"
+              className="px-3 py-2.5 rounded-xl bg-violet-500 text-white text-sm font-medium disabled:opacity-40 hover:bg-violet-600 active:scale-95 transition-all flex items-center"
             >
               {aiLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handlePhotoCapture}
+              className="hidden"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={photoLoading}
+              className="px-3 py-2.5 rounded-xl bg-sky-500 text-white text-sm font-medium disabled:opacity-40 hover:bg-sky-600 active:scale-95 transition-all flex items-center"
+            >
+              {photoLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
             </button>
           </div>
           {aiError && <p className="text-xs text-red-500 mt-1.5 px-1">{aiError}</p>}
@@ -259,7 +387,7 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
             placeholder="Search foods..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 rounded-2xl bg-white/70 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent text-gray-800 placeholder:text-gray-400"
+            className="w-full pl-10 pr-4 py-3 rounded-2xl bg-white/70 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent text-gray-800 placeholder:text-gray-400"
           />
         </div>
 
@@ -270,12 +398,12 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
             value={customFood}
             onChange={e => setCustomFood(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleCustomFood()}
-            className="flex-1 px-4 py-3 rounded-2xl bg-white/70 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-800 placeholder:text-gray-400"
+            className="flex-1 px-4 py-3 rounded-2xl bg-white/70 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-800 placeholder:text-gray-400"
           />
           <button
             onClick={handleCustomFood}
             disabled={!customFood.trim()}
-            className="px-4 py-3 rounded-2xl bg-blue-500 text-white font-medium disabled:opacity-40 hover:bg-blue-600 active:scale-95 transition-all"
+            className="px-4 py-3 rounded-2xl bg-indigo-500 text-white font-medium disabled:opacity-40 hover:bg-indigo-600 active:scale-95 transition-all"
           >
             <ChevronRight className="w-5 h-5" />
           </button>
@@ -362,7 +490,7 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
 
         <button
           onClick={() => setStep('lactaid')}
-          className="w-full py-4 rounded-2xl bg-blue-500 text-white font-semibold text-lg hover:bg-blue-600 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+          className="w-full py-4 rounded-2xl bg-indigo-500 text-white font-semibold text-lg hover:bg-indigo-600 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
         >
           Next <ChevronRight className="w-5 h-5" />
         </button>
@@ -378,8 +506,8 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
         </button>
 
         <div className="text-center">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-blue-100 mb-4">
-            <Pill className="w-10 h-10 text-blue-500" />
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-indigo-100 mb-4">
+            <Pill className="w-10 h-10 text-indigo-500" />
           </div>
           <h2 className="text-xl font-bold text-gray-800">How many Lactaid pills?</h2>
           <p className="text-gray-500 mt-1 text-sm">
@@ -401,9 +529,9 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
             </div>
             <button
               onClick={() => setLactaidPills(lactaidPills + 1)}
-              className="w-14 h-14 rounded-full bg-blue-100 hover:bg-blue-200 flex items-center justify-center active:scale-90 transition-all"
+              className="w-14 h-14 rounded-full bg-indigo-100 hover:bg-indigo-200 flex items-center justify-center active:scale-90 transition-all"
             >
-              <Plus className="w-6 h-6 text-blue-600" />
+              <Plus className="w-6 h-6 text-indigo-600" />
             </button>
           </div>
 
@@ -414,7 +542,7 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
                 onClick={() => setLactaidPills(n)}
                 className={`w-10 h-10 rounded-full text-sm font-medium transition-all ${
                   lactaidPills === n
-                    ? 'bg-blue-500 text-white scale-110'
+                    ? 'bg-indigo-500 text-white scale-110'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >

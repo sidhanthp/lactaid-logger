@@ -4,8 +4,8 @@
   "description": "Track dairy intake, log Lactaid dosage, and get personalized recommendations",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#fffbf5",
-  "theme_color": "#3b82f6",
+  "background_color": "#f5f3ff",
+  "theme_color": "#6366f1",
   "icons": [
     {
       "src": "/icon-192.png",

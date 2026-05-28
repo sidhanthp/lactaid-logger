@@ -47,13 +47,13 @@ export default function LactaidLogger() {
   const pendingSymptoms = meals.filter(m => m.symptoms === null).length;
 
   return (
-    <div className="flex flex-col min-h-dvh bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50">
+    <div className="flex flex-col min-h-dvh bg-gradient-to-br from-violet-50 via-indigo-50/30 to-slate-50">
       {/* Header */}
       <header className="sticky top-0 z-40 bg-white/70 backdrop-blur-xl border-b border-gray-100/50">
         <div className="max-w-lg mx-auto px-4 py-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xl shadow-lg shadow-blue-200">
-              💊
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-200">
+              <img src="/icon.svg" alt="" className="w-7 h-7 rounded-lg" />
             </div>
             <div>
               <h1 className="text-lg font-bold text-gray-900">Lactaid Logger</h1>
@@ -90,11 +90,11 @@ export default function LactaidLogger() {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex-1 flex flex-col items-center gap-1 py-3 pt-2 transition-all relative ${
-                  isActive ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'
+                  isActive ? 'text-indigo-600' : 'text-gray-400 hover:text-gray-600'
                 }`}
               >
                 {isActive && (
-                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-blue-500 rounded-full" />
+                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-indigo-500 rounded-full" />
                 )}
                 <div className="relative">
                   <Icon className="w-6 h-6" strokeWidth={isActive ? 2.5 : 2} />

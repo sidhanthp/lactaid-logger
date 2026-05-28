@@ -21,6 +21,10 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
     title: "Lactaid Logger",
   },
+  icons: {
+    icon: "/icon-192.png",
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export const viewport: Viewport = {
@@ -28,7 +32,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#fffbf5",
+  themeColor: "#6366f1",
 };
 
 export default function RootLayout({
