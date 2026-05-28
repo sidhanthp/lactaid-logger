@@ -64,12 +64,16 @@ Output: [{"food":"Latte","dairyLevel":"low","estimatedLactoseGrams":2},{"food":"
     const data = await res.json();
     const content = data.choices?.[0]?.message?.content?.trim() ?? '';
 
-    const jsonMatch = content.match(/\[[\s\S]*?\]/);
-    if (!jsonMatch) {
-      return Response.json({ error: 'Could not parse AI response' }, { status: 422 });
+    let parsed: ParsedMeal[];
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      const jsonMatch = content.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) {
+        return Response.json({ error: 'Could not parse AI response' }, { status: 422 });
+      }
+      parsed = JSON.parse(jsonMatch[0]);
     }
-
-    const parsed: ParsedMeal[] = JSON.parse(jsonMatch[0]);
     const validLevels = ['none', 'trace', 'low', 'medium', 'high', 'very_high'];
     const validated = parsed
       .filter(m => m.food && validLevels.includes(m.dairyLevel) && typeof m.estimatedLactoseGrams === 'number')
