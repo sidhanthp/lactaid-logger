@@ -1,7 +1,10 @@
-import { prisma } from '@/lib/db';
+import { getPrisma } from '@/lib/db';
 import { NextRequest } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
+  const prisma = getPrisma();
   const meals = await prisma.meal.findMany({ orderBy: { createdAt: 'desc' } });
   const mapped = meals.map(m => ({
     id: m.id,
@@ -17,6 +20,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const prisma = getPrisma();
   const body = await request.json();
   const meal = await prisma.meal.create({
     data: {
