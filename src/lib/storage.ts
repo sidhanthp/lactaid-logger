@@ -3,13 +3,9 @@ import { MealEntry, DairyLevel } from './types';
 const API_BASE = '/api/meals';
 
 export async function fetchMeals(): Promise<MealEntry[]> {
-  try {
-    const res = await fetch(API_BASE);
-    if (!res.ok) throw new Error('API error');
-    return await res.json();
-  } catch {
-    return [];
-  }
+  const res = await fetch(API_BASE);
+  if (!res.ok) throw new Error('API error');
+  return await res.json();
 }
 
 export async function createMeal(params: {

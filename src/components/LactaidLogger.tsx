@@ -23,16 +23,20 @@ export default function LactaidLogger() {
   useEffect(() => {
     if (!isMounted.current) {
       isMounted.current = true;
-      fetchMeals().then(data => {
-        setMeals(data);
-        setLoading(false);
-      });
+      fetchMeals()
+        .then(data => setMeals(data))
+        .catch(() => {})
+        .finally(() => setLoading(false));
     }
   }, []);
 
   const refreshMeals = useCallback(async () => {
-    const data = await fetchMeals();
-    setMeals(data);
+    try {
+      const data = await fetchMeals();
+      setMeals(data);
+    } catch {
+      // Keep existing meals on fetch failure
+    }
   }, []);
 
   function handleMealLogged() {
