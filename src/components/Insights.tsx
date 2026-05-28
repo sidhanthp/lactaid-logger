@@ -1,9 +1,15 @@
 'use client';
 
-import { TrendingUp, Target, Award, BarChart3, Download, Sparkles } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { TrendingUp, Target, Award, BarChart3, Download, Sparkles, Brain, RefreshCw } from 'lucide-react';
 import { MealEntry } from '@/lib/types';
 import { DAIRY_LEVEL_INFO } from '@/lib/dairy';
 import { getRecommendations, getStats, getPatternInsights, exportMealsToCsv } from '@/lib/recommendations';
+
+interface AiInsight {
+  emoji: string;
+  text: string;
+}
 
 interface InsightsProps {
   meals: MealEntry[];
@@ -13,6 +19,29 @@ export default function Insights({ meals }: InsightsProps) {
   const recommendations = getRecommendations(meals);
   const stats = getStats(meals);
   const patterns = getPatternInsights(meals);
+  const [aiInsights, setAiInsights] = useState<AiInsight[] | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState('');
+
+  const fetchAiInsights = useCallback(async () => {
+    if (meals.length < 3) return;
+    setAiLoading(true);
+    setAiError('');
+    try {
+      const res = await fetch('/api/insights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ meals }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      setAiInsights(data.insights);
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'Failed to get insights');
+    } finally {
+      setAiLoading(false);
+    }
+  }, [meals]);
 
   function handleExport() {
     const csv = exportMealsToCsv(meals);
@@ -77,6 +106,42 @@ export default function Insights({ meals }: InsightsProps) {
           sub="most logged"
         />
       </div>
+
+      {/* AI Coach */}
+      {meals.length >= 3 && (
+        <div className="bg-gradient-to-br from-violet-50 to-purple-50 rounded-3xl p-5 border border-violet-100">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-bold text-gray-800 flex items-center gap-2">
+              <Brain className="w-5 h-5 text-violet-500" /> AI Coach
+            </h3>
+            <button
+              onClick={fetchAiInsights}
+              disabled={aiLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-violet-500 text-white text-xs font-medium hover:bg-violet-600 transition-all active:scale-95 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${aiLoading ? 'animate-spin' : ''}`} />
+              {aiLoading ? 'Analyzing...' : aiInsights ? 'Refresh' : 'Get AI Insights'}
+            </button>
+          </div>
+          {aiError && (
+            <p className="text-sm text-red-500 mb-2">{aiError}</p>
+          )}
+          {aiInsights ? (
+            <div className="space-y-2.5">
+              {aiInsights.map((insight, i) => (
+                <div key={i} className="flex items-start gap-3 p-3 rounded-2xl bg-white/60 border border-violet-100">
+                  <span className="text-lg shrink-0">{insight.emoji}</span>
+                  <p className="text-sm text-gray-700">{insight.text}</p>
+                </div>
+              ))}
+            </div>
+          ) : !aiLoading && (
+            <p className="text-sm text-gray-500">
+              Tap the button to get personalized advice based on your {meals.length} logged meals
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Pattern Insights */}
       {patterns.length > 0 && (
