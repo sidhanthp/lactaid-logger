@@ -179,20 +179,29 @@ export default function Insights({ meals }: InsightsProps) {
         <div className="space-y-3">
           {recommendations.map(rec => {
             const levelInfo = DAIRY_LEVEL_INFO[rec.dairyLevel];
+            const sourceColor = rec.source === 'personal' ? 'text-emerald-600' :
+              rec.source === 'extrapolated' ? 'text-blue-500' :
+              rec.source === 'needs_more_data' ? 'text-amber-600' : 'text-gray-400';
+            const sourceIcon = rec.source === 'personal' ? '✓' :
+              rec.source === 'extrapolated' ? '↗' :
+              rec.source === 'needs_more_data' ? '!' : '○';
             return (
               <div key={rec.dairyLevel} className="flex items-center gap-3 p-3 rounded-2xl bg-gray-50/80">
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span
-                      className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                      className="text-xs font-semibold px-2 py-0.5 rounded-full shrink-0"
                       style={{ backgroundColor: levelInfo.color + '20', color: levelInfo.color }}
                     >
                       {levelInfo.emoji} {levelInfo.label}
                     </span>
                     <span className="text-[10px] text-gray-400">{levelInfo.description}</span>
                   </div>
+                  <p className={`text-[10px] mt-1 ${sourceColor} truncate`}>
+                    <span className="font-medium">{sourceIcon}</span> {rec.reasoning}
+                  </p>
                 </div>
-                <div className="text-right">
+                <div className="text-right shrink-0">
                   <div className="flex items-center gap-1">
                     <span className="text-lg font-bold text-gray-800">{rec.recommendedPills}</span>
                     <span className="text-xs text-gray-500">pill{rec.recommendedPills !== 1 ? 's' : ''}</span>
@@ -200,7 +209,11 @@ export default function Insights({ meals }: InsightsProps) {
                   <div className="flex items-center gap-1">
                     <ConfidenceDots level={rec.confidence} />
                     <span className="text-[10px] text-gray-400">
-                      {rec.dataPoints > 0 ? `${rec.dataPoints} entries` : 'default'}
+                      {rec.source === 'personal'
+                        ? `${rec.successfulDataPoints}/${rec.dataPoints} successful`
+                        : rec.source === 'needs_more_data'
+                        ? `0/${rec.dataPoints} successful`
+                        : rec.source === 'extrapolated' ? 'estimated' : 'default'}
                     </span>
                   </div>
                 </div>

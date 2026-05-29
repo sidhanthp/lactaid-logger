@@ -603,7 +603,6 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
 
   if (step === 'lactaid') {
     const rec = pillRecommendation;
-    const hasPersonalData = rec && rec.dataPoints > 0;
     return (
       <div className="flex flex-col gap-6 animate-fade-in">
         <button onClick={() => setStep('dairy')} className="flex items-center gap-1 text-gray-500 hover:text-gray-700 w-fit">
@@ -637,10 +636,7 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
                 Take {rec.recommendedPills} pill{rec.recommendedPills !== 1 ? 's' : ''}
               </p>
               <p className="text-xs text-indigo-500">
-                {hasPersonalData
-                  ? `Based on your ${rec.dataPoints} past ${dairyLevel}-dairy meal${rec.dataPoints !== 1 ? 's' : ''} · ${rec.confidence} confidence`
-                  : `Default for ${dairyLevel} dairy`
-                }
+                {rec.reasoning} · {rec.confidence} confidence
               </p>
             </div>
             {lactaidPills === rec.recommendedPills && (

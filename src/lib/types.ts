@@ -20,11 +20,16 @@ export interface DairyFood {
   emoji: string;
 }
 
+export type RecommendationSource = 'personal' | 'default' | 'extrapolated' | 'needs_more_data';
+
 export interface DosageRecommendation {
   dairyLevel: DairyLevel;
   recommendedPills: number;
   confidence: 'low' | 'medium' | 'high';
   dataPoints: number;
+  successfulDataPoints: number;
+  source: RecommendationSource;
+  reasoning: string;
 }
 
 export type TabType = 'log' | 'history' | 'insights';
