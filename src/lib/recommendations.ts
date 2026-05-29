@@ -1,4 +1,4 @@
-import { DairyLevel, DosageRecommendation, MealEntry, SymptomLevel } from './types';
+import { DairyLevel, DosageRecommendation, MealEntry, RecommendationSource, SymptomLevel } from './types';
 
 const DAIRY_LEVELS: DairyLevel[] = ['none', 'trace', 'low', 'medium', 'high', 'very_high'];
 
@@ -9,49 +9,110 @@ const SYMPTOM_SCORE: Record<SymptomLevel, number> = {
   severe: 3,
 };
 
+const DAIRY_LEVEL_INDEX: Record<DairyLevel, number> = {
+  none: 0, trace: 1, low: 2, medium: 3, high: 4, very_high: 5,
+};
+
+const DEFAULT_PILLS: Record<DairyLevel, number> = {
+  none: 0, trace: 0, low: 1, medium: 1, high: 2, very_high: 3,
+};
+
+const MINIMUM_FLOORS: Record<DairyLevel, number> = {
+  none: 0, trace: 0, low: 0, medium: 1, high: 1, very_high: 2,
+};
+
+function median(arr: number[]): number {
+  const sorted = [...arr].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? Math.round((sorted[mid - 1] + sorted[mid]) / 2) : sorted[mid];
+}
+
+function extrapolateFromAdjacent(meals: MealEntry[], targetLevel: DairyLevel): number | null {
+  const targetIdx = DAIRY_LEVEL_INDEX[targetLevel];
+  const tracked = meals.filter(m => m.symptoms !== null);
+
+  let bestMatch: { pills: number; distance: number } | null = null;
+
+  for (const level of DAIRY_LEVELS) {
+    if (level === 'none' || level === targetLevel) continue;
+    const levelIdx = DAIRY_LEVEL_INDEX[level];
+    const successful = tracked.filter(
+      m => m.dairyLevel === level && (m.symptoms === 'none' || m.symptoms === 'mild')
+    );
+    if (successful.length < 2) continue;
+
+    const medianPills = median(successful.map(m => m.lactaidPills));
+    const distance = Math.abs(targetIdx - levelIdx);
+
+    if (!bestMatch || distance < bestMatch.distance) {
+      const scaleFactor = targetIdx / levelIdx;
+      const extrapolated = Math.round(medianPills * scaleFactor);
+      bestMatch = { pills: extrapolated, distance };
+    }
+  }
+
+  return bestMatch?.pills ?? null;
+}
+
 export function getRecommendations(meals: MealEntry[]): DosageRecommendation[] {
   return DAIRY_LEVELS.filter(level => level !== 'none').map(level => {
     const relevantMeals = meals.filter(m => m.dairyLevel === level && m.symptoms !== null);
-    if (relevantMeals.length === 0) {
-      return {
-        dairyLevel: level,
-        recommendedPills: getDefaultRecommendation(level),
-        confidence: 'low' as const,
-        dataPoints: 0,
-      };
-    }
-
     const successfulMeals = relevantMeals.filter(m => m.symptoms === 'none' || m.symptoms === 'mild');
-    let recommendedPills: number;
+    const floor = MINIMUM_FLOORS[level];
+    const defaultPills = DEFAULT_PILLS[level];
 
-    if (successfulMeals.length > 0) {
-      const pillCounts = successfulMeals.map(m => m.lactaidPills);
-      recommendedPills = Math.min(...pillCounts);
-    } else {
-      const maxUsed = Math.max(...relevantMeals.map(m => m.lactaidPills));
-      recommendedPills = maxUsed + 1;
+    if (relevantMeals.length === 0) {
+      const extrapolated = extrapolateFromAdjacent(meals, level);
+      if (extrapolated !== null) {
+        const pills = Math.max(extrapolated, floor);
+        return makeRec(level, pills, 'low', 0, 0, 'extrapolated',
+          'Estimated from your results at other dairy levels');
+      }
+      return makeRec(level, defaultPills, 'low', 0, 0, 'default',
+        'Research-based default — log meals to personalize');
     }
 
-    const confidence = relevantMeals.length >= 5 ? 'high' : relevantMeals.length >= 2 ? 'medium' : 'low';
+    if (successfulMeals.length === 0) {
+      const maxUsed = Math.max(...relevantMeals.map(m => m.lactaidPills));
+      const pills = Math.max(maxUsed + 1, floor);
+      return makeRec(level, pills, 'low', relevantMeals.length, 0, 'needs_more_data',
+        `${relevantMeals.length} meal${relevantMeals.length !== 1 ? 's' : ''} tracked, all with symptoms — try ${pills} pills`);
+    }
 
-    return {
-      dairyLevel: level,
-      recommendedPills: Math.max(0, recommendedPills),
-      confidence,
-      dataPoints: relevantMeals.length,
-    };
+    const pillCounts = successfulMeals.map(m => m.lactaidPills);
+    let pills: number;
+
+    if (successfulMeals.length <= 2) {
+      const medianPills = median(pillCounts);
+      pills = Math.round((medianPills + defaultPills) / 2);
+    } else {
+      pills = median(pillCounts);
+    }
+
+    pills = Math.max(pills, floor);
+
+    const confidence: 'low' | 'medium' | 'high' =
+      successfulMeals.length >= 5 ? 'high' :
+      successfulMeals.length >= 3 ? 'medium' : 'low';
+
+    const reasoning = successfulMeals.length <= 2
+      ? `Based on ${successfulMeals.length} successful meal${successfulMeals.length !== 1 ? 's' : ''}, blended with default`
+      : `Based on ${successfulMeals.length} successful meals`;
+
+    return makeRec(level, pills, confidence, relevantMeals.length, successfulMeals.length, 'personal', reasoning);
   });
 }
 
-function getDefaultRecommendation(level: DairyLevel): number {
-  switch (level) {
-    case 'trace': return 0;
-    case 'low': return 1;
-    case 'medium': return 1;
-    case 'high': return 2;
-    case 'very_high': return 3;
-    default: return 0;
-  }
+function makeRec(
+  dairyLevel: DairyLevel,
+  recommendedPills: number,
+  confidence: 'low' | 'medium' | 'high',
+  dataPoints: number,
+  successfulDataPoints: number,
+  source: RecommendationSource,
+  reasoning: string,
+): DosageRecommendation {
+  return { dairyLevel, recommendedPills, confidence, dataPoints, successfulDataPoints, source, reasoning };
 }
 
 export function getStats(meals: MealEntry[]) {
