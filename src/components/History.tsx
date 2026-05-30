@@ -14,6 +14,8 @@ interface HistoryProps {
 export default function History({ meals, onUpdate }: HistoryProps) {
   const [symptomModalId, setSymptomModalId] = useState<string | null>(null);
   const [symptomNotes, setSymptomNotes] = useState('');
+  const [editTimeId, setEditTimeId] = useState<string | null>(null);
+  const [editTimeValue, setEditTimeValue] = useState('');
 
   async function handleSymptomSelect(mealId: string, symptom: SymptomLevel) {
     await updateMealApi(mealId, { symptoms: symptom, symptomNotes });
@@ -24,6 +26,26 @@ export default function History({ meals, onUpdate }: HistoryProps) {
 
   async function handleDelete(id: string) {
     await deleteMealApi(id);
+    onUpdate();
+  }
+
+  function openTimeEdit(meal: MealEntry) {
+    const date = new Date(meal.timestamp);
+    const y = date.getFullYear();
+    const mo = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    const h = String(date.getHours()).padStart(2, '0');
+    const mi = String(date.getMinutes()).padStart(2, '0');
+    setEditTimeValue(`${y}-${mo}-${d}T${h}:${mi}`);
+    setEditTimeId(meal.id);
+  }
+
+  async function handleTimeSave() {
+    if (!editTimeId || !editTimeValue) return;
+    const timestamp = new Date(editTimeValue).getTime();
+    await updateMealApi(editTimeId, { timestamp });
+    setEditTimeId(null);
+    setEditTimeValue('');
     onUpdate();
   }
 
@@ -82,6 +104,7 @@ export default function History({ meals, onUpdate }: HistoryProps) {
                 formatFullDate={formatFullDate}
                 onSymptomClick={() => { setSymptomModalId(meal.id); setSymptomNotes(meal.symptomNotes); }}
                 onDelete={() => handleDelete(meal.id)}
+                onEditTime={() => openTimeEdit(meal)}
                 highlight
               />
             ))}
@@ -101,12 +124,14 @@ export default function History({ meals, onUpdate }: HistoryProps) {
                 formatFullDate={formatFullDate}
                 onSymptomClick={() => { setSymptomModalId(meal.id); setSymptomNotes(meal.symptomNotes); }}
                 onDelete={() => handleDelete(meal.id)}
+                onEditTime={() => openTimeEdit(meal)}
               />
             ))}
           </div>
         </div>
       )}
 
+      {/* Symptom Modal */}
       {symptomModalId && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-md p-6 animate-slide-up">
@@ -143,6 +168,37 @@ export default function History({ meals, onUpdate }: HistoryProps) {
           </div>
         </div>
       )}
+
+      {/* Edit Time Modal */}
+      {editTimeId && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-md p-6 animate-slide-up">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold text-gray-800">Edit Meal Time</h3>
+              <button
+                onClick={() => { setEditTimeId(null); setEditTimeValue(''); }}
+                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center"
+              >
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+
+            <input
+              type="datetime-local"
+              value={editTimeValue}
+              onChange={e => setEditTimeValue(e.target.value)}
+              className="w-full px-4 py-3 rounded-2xl bg-gray-50 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-800 text-sm mb-4"
+            />
+
+            <button
+              onClick={handleTimeSave}
+              className="w-full py-3 rounded-2xl bg-indigo-500 text-white font-semibold hover:bg-indigo-600 active:scale-[0.98] transition-all"
+            >
+              Save Time
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -153,6 +209,7 @@ function MealCard({
   formatFullDate,
   onSymptomClick,
   onDelete,
+  onEditTime,
   highlight,
 }: {
   meal: MealEntry;
@@ -160,6 +217,7 @@ function MealCard({
   formatFullDate: (t: number) => string;
   onSymptomClick: () => void;
   onDelete: () => void;
+  onEditTime: () => void;
   highlight?: boolean;
 }) {
   const levelInfo = DAIRY_LEVEL_INFO[meal.dairyLevel];
@@ -187,9 +245,14 @@ function MealCard({
             </span>
           </div>
           <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-            <span className="flex items-center gap-1">
+            <button
+              onClick={onEditTime}
+              className="flex items-center gap-1 hover:text-indigo-600 transition-colors"
+              title="Edit time"
+            >
               <Clock className="w-3 h-3" /> {formatTime(meal.timestamp)}
-            </span>
+
+            </button>
             <span>{meal.estimatedLactoseGrams}g lactose</span>
             <span>{meal.lactaidPills} pill{meal.lactaidPills !== 1 ? 's' : ''}</span>
           </div>

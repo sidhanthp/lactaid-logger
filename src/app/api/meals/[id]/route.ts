@@ -14,6 +14,7 @@ export async function PATCH(
   const data: Record<string, unknown> = {};
   if (body.symptoms !== undefined) data.symptoms = body.symptoms;
   if (body.symptomNotes !== undefined) data.symptomNotes = body.symptomNotes;
+  if (body.timestamp !== undefined) data.createdAt = new Date(body.timestamp);
 
   const meal = await prisma.meal.update({ where: { id }, data });
   return Response.json({
