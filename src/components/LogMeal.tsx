@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { Search, ChevronRight, ChevronLeft, Minus, Plus, Check, Pill, Zap, Sparkles, Loader2, Camera, X } from 'lucide-react';
+import { Search, ChevronRight, ChevronLeft, Minus, Plus, Check, Pill, Zap, Sparkles, Loader2, Camera, X, Clock } from 'lucide-react';
 import { DairyLevel, MealEntry } from '@/lib/types';
 import { DAIRY_FOODS, DAIRY_LEVEL_INFO, searchFoods, estimateDairyLevel } from '@/lib/dairy';
 import { createMeal } from '@/lib/storage';
@@ -18,6 +18,13 @@ interface PhotoAnalysisResult {
   totalLactoseGrams: number;
   recommendedPills: number;
   summary: string;
+}
+
+interface MealItem {
+  food: string;
+  emoji: string;
+  dairyLevel: DairyLevel;
+  lactoseGrams: number;
 }
 
 interface LogMealProps {
@@ -53,16 +60,41 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const estimateAbortRef = useRef<AbortController | null>(null);
 
+  // Multi-item meal basket
+  const [mealItems, setMealItems] = useState<MealItem[]>([]);
+
+  // Editable meal time
+  const [mealTime, setMealTime] = useState<string>(() => formatDateTimeLocal(new Date()));
+
+  function formatDateTimeLocal(date: Date): string {
+    const y = date.getFullYear();
+    const mo = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    const h = String(date.getHours()).padStart(2, '0');
+    const mi = String(date.getMinutes()).padStart(2, '0');
+    return `${y}-${mo}-${d}T${h}:${mi}`;
+  }
+
   useEffect(() => {
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, []);
 
+  // Combined dairy level from basket
+  const combinedLactose = useMemo(() => {
+    return mealItems.reduce((sum, item) => sum + item.lactoseGrams, 0);
+  }, [mealItems]);
+
+  const combinedDairyLevel = useMemo(() => {
+    return estimateDairyLevel(combinedLactose);
+  }, [combinedLactose]);
+
   const pillRecommendation = useMemo(() => {
+    const level = mealItems.length > 0 ? combinedDairyLevel : dairyLevel;
     const recs = getRecommendations(meals);
-    return recs.find(r => r.dairyLevel === dairyLevel);
-  }, [meals, dairyLevel]);
+    return recs.find(r => r.dairyLevel === level);
+  }, [meals, dairyLevel, mealItems, combinedDairyLevel]);
 
   const frequentFoods = useMemo(() => {
     const counts: Record<string, { count: number; lastPills: number; food: string }> = {};
@@ -85,6 +117,14 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
     });
     return cats;
   }, [filteredFoods]);
+
+  function addToBasket(food: string, emoji: string, level: DairyLevel, lactose: number) {
+    setMealItems(prev => [...prev, { food, emoji, dairyLevel: level, lactoseGrams: lactose }]);
+  }
+
+  function removeFromBasket(index: number) {
+    setMealItems(prev => prev.filter((_, i) => i !== index));
+  }
 
   function selectFood(name: string, lactose: number, emoji: string, level: DairyLevel) {
     if (estimateAbortRef.current) estimateAbortRef.current.abort();
@@ -148,17 +188,53 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
     }
   }
 
+  function handleAddToBasketFromDairy() {
+    addToBasket(selectedFood, selectedEmoji, dairyLevel, lactoseGrams);
+    setSelectedFood('');
+    setSelectedEmoji('🍽');
+    setLactoseGrams(0);
+    setDairyLevel('none');
+    setEstimateReasoning('');
+    setCustomFood('');
+    setStep('food');
+  }
+
+  function handleDoneWithBasket() {
+    // Auto-open recommendation with combined dairy level
+    if (pillRecommendation && lactaidPills === 0) {
+      setLactaidPills(pillRecommendation.recommendedPills);
+    }
+    setStep('lactaid');
+  }
+
   async function handleSave() {
     if (isSaving) return;
     setIsSaving(true);
     setSaveError('');
     try {
-      await createMeal({
-        food: selectedFood,
-        dairyLevel,
-        estimatedLactoseGrams: lactoseGrams,
-        lactaidPills,
-      });
+      const timestamp = new Date(mealTime).getTime();
+      if (mealItems.length > 0) {
+        // Multi-item meal: save as combined entry
+        const combinedFood = mealItems.map(item => item.food).join(', ');
+        const totalLactose = mealItems.reduce((sum, item) => sum + item.lactoseGrams, 0);
+        const level = estimateDairyLevel(totalLactose);
+        await createMeal({
+          food: combinedFood,
+          dairyLevel: level,
+          estimatedLactoseGrams: totalLactose,
+          lactaidPills,
+          timestamp,
+        });
+      } else {
+        // Single item meal
+        await createMeal({
+          food: selectedFood,
+          dairyLevel,
+          estimatedLactoseGrams: lactoseGrams,
+          lactaidPills,
+          timestamp,
+        });
+      }
       onMealSaved();
       setStep('done');
       timeoutRef.current = setTimeout(() => {
@@ -194,15 +270,16 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
     }
   }
 
-  async function handleAiSave(meal: AiParsedMeal) {
-    setSelectedFood(meal.food);
-    setLactoseGrams(meal.estimatedLactoseGrams);
-    setDairyLevel(meal.dairyLevel);
-    const known = DAIRY_FOODS.find(f => f.name === meal.food);
-    setSelectedEmoji(known?.emoji ?? '🍽');
-    setAiResults(null);
-    setAiInput('');
-    setStep('lactaid');
+  function handleAiSave(meal: AiParsedMeal) {
+    // Add directly to basket instead of single-item flow
+    addToBasket(meal.food, '🍽', meal.dairyLevel, meal.estimatedLactoseGrams);
+    // If there are more AI results, keep showing them
+    if (aiResults && aiResults.length > 1) {
+      setAiResults(aiResults.filter(m => m !== meal));
+    } else {
+      setAiResults(null);
+      setAiInput('');
+    }
   }
 
   function revokePreview() {
@@ -246,15 +323,8 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
   }
 
   function handlePhotoItemSelect(item: PhotoAnalysisResult['items'][0]) {
-    setSelectedFood(item.food);
-    setLactoseGrams(item.estimatedLactoseGrams);
-    setDairyLevel(item.dairyLevel as DairyLevel);
-    const known = DAIRY_FOODS.find(f => f.name === item.food);
-    setSelectedEmoji(known?.emoji ?? '🍽');
-    setPhotoResult(null);
-    revokePreview();
-    setPhotoPreview(null);
-    setStep('lactaid');
+    // Add to basket directly
+    addToBasket(item.food, '🍽', item.dairyLevel as DairyLevel, item.estimatedLactoseGrams);
   }
 
   function dismissPhoto() {
@@ -284,6 +354,8 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
     setPhotoError('');
     setPhotoContext('');
     setPendingFile(null);
+    setMealItems([]);
+    setMealTime(formatDateTimeLocal(new Date()));
   }
 
   if (step === 'done') {
@@ -300,6 +372,47 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
     return (
       <div className="flex flex-col gap-4 animate-fade-in">
         <h2 className="text-xl font-bold text-gray-800">What did you eat?</h2>
+
+        {/* Meal Basket */}
+        {mealItems.length > 0 && (
+          <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-3 border border-emerald-200/60">
+            <div className="flex items-center justify-between mb-2 px-1">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">
+                  Meal Items ({mealItems.length})
+                </span>
+              </div>
+              <span className="text-xs font-medium text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                {combinedLactose.toFixed(1)}g total lactose
+              </span>
+            </div>
+            <div className="space-y-1.5 mb-2">
+              {mealItems.map((item, i) => (
+                <div key={i} className="flex items-center justify-between p-2 rounded-xl bg-white/80">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <span className="text-lg">{item.emoji}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{item.food}</p>
+                      <p className="text-[10px] text-gray-500">{item.lactoseGrams}g · {DAIRY_LEVEL_INFO[item.dairyLevel].label}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => removeFromBasket(i)}
+                    className="p-1.5 rounded-full hover:bg-red-50 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5 text-gray-400 hover:text-red-400" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={handleDoneWithBasket}
+              className="w-full py-2.5 rounded-xl bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+            >
+              <Pill className="w-4 h-4" /> Get Lactaid Recommendation
+            </button>
+          </div>
+        )}
 
         {/* Photo Analysis Result Overlay */}
         {(photoPreview || photoResult) && (
@@ -358,22 +471,49 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
                   </span>
                 </div>
                 <div className="space-y-1.5">
-                  {photoResult.items.map((item, i) => (
-                    <button
-                      key={i}
-                      onClick={() => handlePhotoItemSelect(item)}
-                      className="flex items-center justify-between w-full p-2.5 rounded-xl bg-white/80 border border-sky-100 hover:border-sky-300 transition-all active:scale-[0.98] text-left"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800">{item.food}</p>
-                        <p className="text-[10px] text-gray-500">
-                          {item.estimatedLactoseGrams}g lactose · {item.hasDairy ? DAIRY_LEVEL_INFO[item.dairyLevel as DairyLevel]?.label ?? item.dairyLevel : 'Dairy free'}
-                        </p>
-                      </div>
-                      {item.hasDairy && <span className="text-xs text-sky-500 font-medium">+ Log</span>}
-                    </button>
-                  ))}
+                  {photoResult.items.map((item, i) => {
+                    const alreadyAdded = mealItems.some(m => m.food === item.food);
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => !alreadyAdded && handlePhotoItemSelect(item)}
+                        disabled={alreadyAdded}
+                        className={`flex items-center justify-between w-full p-2.5 rounded-xl border transition-all text-left ${
+                          alreadyAdded
+                            ? 'bg-emerald-50/80 border-emerald-200 opacity-70'
+                            : 'bg-white/80 border-sky-100 hover:border-sky-300 active:scale-[0.98]'
+                        }`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-800">{item.food}</p>
+                          <p className="text-[10px] text-gray-500">
+                            {item.estimatedLactoseGrams}g lactose · {item.hasDairy ? DAIRY_LEVEL_INFO[item.dairyLevel as DairyLevel]?.label ?? item.dairyLevel : 'Dairy free'}
+                          </p>
+                        </div>
+                        {alreadyAdded ? (
+                          <span className="text-xs text-emerald-500 font-medium">Added</span>
+                        ) : item.hasDairy ? (
+                          <span className="text-xs text-sky-500 font-medium">+ Add</span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
                 </div>
+                {photoResult.items.length > 1 && (
+                  <button
+                    onClick={() => {
+                      photoResult.items.forEach(item => {
+                        if (!mealItems.some(m => m.food === item.food)) {
+                          addToBasket(item.food, '🍽', item.dairyLevel as DairyLevel, item.estimatedLactoseGrams);
+                        }
+                      });
+                      dismissPhoto();
+                    }}
+                    className="w-full mt-2 py-2 rounded-xl bg-sky-100 text-sky-700 text-xs font-semibold hover:bg-sky-200 active:scale-[0.98] transition-all"
+                  >
+                    + Add All Items
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -420,19 +560,47 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
           {aiError && <p className="text-xs text-red-500 mt-1.5 px-1">{aiError}</p>}
           {aiResults && (
             <div className="mt-2 space-y-1.5">
-              {aiResults.map((m, i) => (
+              {aiResults.map((m, i) => {
+                const alreadyAdded = mealItems.some(item => item.food === m.food);
+                return (
+                  <button
+                    key={i}
+                    onClick={() => !alreadyAdded && handleAiSave(m)}
+                    disabled={alreadyAdded}
+                    className={`flex items-center justify-between w-full p-2.5 rounded-xl border transition-all text-left ${
+                      alreadyAdded
+                        ? 'bg-emerald-50/80 border-emerald-200 opacity-70'
+                        : 'bg-white/80 border-violet-100 hover:border-violet-300 active:scale-[0.98]'
+                    }`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800">{m.food}</p>
+                      <p className="text-[10px] text-gray-500">{m.estimatedLactoseGrams}g lactose · {DAIRY_LEVEL_INFO[m.dairyLevel].label}</p>
+                    </div>
+                    {alreadyAdded ? (
+                      <span className="text-xs text-emerald-500 font-medium">Added</span>
+                    ) : (
+                      <span className="text-xs text-violet-500 font-medium">+ Add</span>
+                    )}
+                  </button>
+                );
+              })}
+              {aiResults.length > 1 && (
                 <button
-                  key={i}
-                  onClick={() => handleAiSave(m)}
-                  className="flex items-center justify-between w-full p-2.5 rounded-xl bg-white/80 border border-violet-100 hover:border-violet-300 transition-all active:scale-[0.98] text-left"
+                  onClick={() => {
+                    aiResults.forEach(m => {
+                      if (!mealItems.some(item => item.food === m.food)) {
+                        addToBasket(m.food, '🍽', m.dairyLevel, m.estimatedLactoseGrams);
+                      }
+                    });
+                    setAiResults(null);
+                    setAiInput('');
+                  }}
+                  className="w-full py-2 rounded-xl bg-violet-100 text-violet-700 text-xs font-semibold hover:bg-violet-200 active:scale-[0.98] transition-all"
                 >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800">{m.food}</p>
-                    <p className="text-[10px] text-gray-500">{m.estimatedLactoseGrams}g lactose · {DAIRY_LEVEL_INFO[m.dairyLevel].label}</p>
-                  </div>
-                  <span className="text-xs text-violet-500 font-medium">+ Add</span>
+                  + Add All Items
                 </button>
-              ))}
+              )}
             </div>
           )}
         </div>
@@ -585,27 +753,47 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
           </div>
         </div>
 
-        <button
-          onClick={() => {
-            if (pillRecommendation && lactaidPills === 0) {
-              setLactaidPills(pillRecommendation.recommendedPills);
-            }
-            setStep('lactaid');
-          }}
-          disabled={estimating}
-          className="w-full py-4 rounded-2xl bg-indigo-500 text-white font-semibold text-lg hover:bg-indigo-600 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-        >
-          Next <ChevronRight className="w-5 h-5" />
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={handleAddToBasketFromDairy}
+            disabled={estimating}
+            className="flex-1 py-4 rounded-2xl bg-emerald-500 text-white font-semibold text-base hover:bg-emerald-600 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            <Plus className="w-5 h-5" /> Add & Continue
+          </button>
+          {mealItems.length === 0 && (
+            <button
+              onClick={() => {
+                // Single item: go directly to lactaid step
+                addToBasket(selectedFood, selectedEmoji, dairyLevel, lactoseGrams);
+                if (pillRecommendation && lactaidPills === 0) {
+                  setLactaidPills(pillRecommendation.recommendedPills);
+                }
+                setStep('lactaid');
+              }}
+              disabled={estimating}
+              className="flex-1 py-4 rounded-2xl bg-indigo-500 text-white font-semibold text-base hover:bg-indigo-600 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              Done <ChevronRight className="w-5 h-5" />
+            </button>
+          )}
+        </div>
       </div>
     );
   }
 
   if (step === 'lactaid') {
+    const totalLactose = mealItems.length > 0 ? combinedLactose : lactoseGrams;
+    const displayLevel = mealItems.length > 0 ? combinedDairyLevel : dairyLevel;
+    const displayFood = mealItems.length > 0
+      ? mealItems.map(item => item.food).join(', ')
+      : selectedFood;
     const rec = pillRecommendation;
+    const levelInfo = DAIRY_LEVEL_INFO[displayLevel];
+
     return (
       <div className="flex flex-col gap-6 animate-fade-in">
-        <button onClick={() => setStep('dairy')} className="flex items-center gap-1 text-gray-500 hover:text-gray-700 w-fit">
+        <button onClick={() => mealItems.length > 0 ? setStep('food') : setStep('dairy')} className="flex items-center gap-1 text-gray-500 hover:text-gray-700 w-fit">
           <ChevronLeft className="w-4 h-4" /> Back
         </button>
 
@@ -615,8 +803,20 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
           </div>
           <h2 className="text-xl font-bold text-gray-800">How many Lactaid pills?</h2>
           <p className="text-gray-500 mt-1 text-sm">
-            For <span className="font-medium">{selectedFood}</span> ({lactoseGrams}g lactose)
+            For <span className="font-medium">{displayFood}</span>
           </p>
+          <div className="flex items-center justify-center gap-2 mt-2">
+            <span
+              className="text-xs font-semibold px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: levelInfo.color + '20', color: levelInfo.color }}
+            >
+              {levelInfo.emoji} {levelInfo.label}
+            </span>
+            <span className="text-xs text-gray-500">{totalLactose.toFixed(1)}g lactose</span>
+          </div>
+          {mealItems.length > 1 && (
+            <p className="text-xs text-gray-400 mt-1">{mealItems.length} items combined</p>
+          )}
         </div>
 
         {rec && (
@@ -680,6 +880,20 @@ export default function LogMeal({ meals, onMealSaved, onMealLogged }: LogMealPro
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Meal Time Picker */}
+        <div className="bg-white/60 rounded-2xl p-4 border border-gray-100">
+          <div className="flex items-center gap-2 mb-2">
+            <Clock className="w-4 h-4 text-gray-500" />
+            <span className="text-sm font-medium text-gray-700">When did you eat?</span>
+          </div>
+          <input
+            type="datetime-local"
+            value={mealTime}
+            onChange={e => setMealTime(e.target.value)}
+            className="w-full px-3 py-2 rounded-xl bg-gray-50 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 text-sm text-gray-800"
+          />
         </div>
 
         {saveError && (

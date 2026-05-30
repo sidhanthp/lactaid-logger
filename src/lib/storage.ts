@@ -13,6 +13,7 @@ export async function createMeal(params: {
   dairyLevel: DairyLevel;
   estimatedLactoseGrams: number;
   lactaidPills: number;
+  timestamp?: number;
 }): Promise<MealEntry> {
   const res = await fetch(API_BASE, {
     method: 'POST',
@@ -23,7 +24,7 @@ export async function createMeal(params: {
   return await res.json();
 }
 
-export async function updateMealApi(id: string, updates: Partial<MealEntry>): Promise<MealEntry> {
+export async function updateMealApi(id: string, updates: Partial<MealEntry> & { timestamp?: number }): Promise<MealEntry> {
   const res = await fetch(`${API_BASE}/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },

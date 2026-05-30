@@ -28,6 +28,7 @@ export async function POST(request: NextRequest) {
       dairyLevel: body.dairyLevel,
       estimatedLactoseGrams: body.estimatedLactoseGrams,
       lactaidPills: body.lactaidPills,
+      ...(body.timestamp ? { createdAt: new Date(body.timestamp) } : {}),
     },
   });
   return Response.json({
